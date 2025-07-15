@@ -116,7 +116,7 @@ def is_admin(interaction: discord.Interaction) -> bool:
     
     return False
 
-@bot.tree.command(name="admin_message", description="管理者限定メッセージコマンド")
+@bot.tree.command(name="admin_message", description="管理者限定メッセージコマンド", default_permissions=discord.Permissions(administrator=True))
 @app_commands.describe(
     message_key="送信するメッセージのキー（オプション）",
     content="送信するメッセージの内容",
@@ -207,7 +207,7 @@ async def ping_command(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)
     await interaction.response.send_message(f"🏓 Pong! レイテンシ: {latency}ms")
 
-@bot.tree.command(name="list_messages", description="管理者限定：利用可能なメッセージキー一覧を表示")
+@bot.tree.command(name="list_messages", description="管理者限定：利用可能なメッセージキー一覧を表示", default_permissions=discord.Permissions(administrator=True))
 async def list_messages_command(interaction: discord.Interaction):
     """管理者限定：利用可能なメッセージキー一覧を表示"""
     
@@ -241,7 +241,7 @@ async def list_messages_command(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("登録されているメッセージがありません。", ephemeral=True)
 
-@bot.tree.command(name="edit_message", description="管理者限定：登録済みメッセージを編集")
+@bot.tree.command(name="edit_message", description="管理者限定：登録済みメッセージを編集", default_permissions=discord.Permissions(administrator=True))
 @app_commands.describe(
     message_key="編集するメッセージのキー",
     new_content="新しいメッセージ内容（オプション）",
@@ -318,7 +318,7 @@ async def edit_message_command(
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="add_message", description="管理者限定：新しいメッセージキーを追加")
+@bot.tree.command(name="add_message", description="管理者限定：新しいメッセージキーを追加", default_permissions=discord.Permissions(administrator=True))
 @app_commands.describe(
     message_key="新しいメッセージのキー",
     content="メッセージの内容",
@@ -390,7 +390,7 @@ async def add_message_command(
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="remove_message", description="管理者限定：メッセージキーを削除")
+@bot.tree.command(name="remove_message", description="管理者限定：メッセージキーを削除", default_permissions=discord.Permissions(administrator=True))
 @app_commands.describe(
     message_key="削除するメッセージのキー"
 )
@@ -429,7 +429,7 @@ async def remove_message_command(
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="edit_bot_message", description="管理者限定：Botが送信した過去のメッセージを編集")
+@bot.tree.command(name="edit_bot_message", description="管理者限定：Botが送信した過去のメッセージを編集", default_permissions=discord.Permissions(administrator=True))
 @app_commands.describe(
     message_id="編集するメッセージのID",
     new_content="新しいメッセージ内容（オプション）",
@@ -542,7 +542,7 @@ async def edit_bot_message_command(
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="get_message_id", description="管理者限定：指定したメッセージのIDを取得")
+@bot.tree.command(name="get_message_id", description="管理者限定：指定したメッセージのIDを取得", default_permissions=discord.Permissions(administrator=True))
 @app_commands.describe(
     message_link="メッセージのリンクまたはメッセージID"
 )
@@ -604,7 +604,7 @@ async def get_message_id_command(
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="extract_embed_text", description="管理者限定：Botが送信したEmbedメッセージをプレーンテキストで出力")
+@bot.tree.command(name="extract_embed_text", description="管理者限定：Botが送信したEmbedメッセージをプレーンテキストで出力", default_permissions=discord.Permissions(administrator=True))
 @app_commands.describe(
     message_id="対象メッセージのID",
     channel="メッセージがあるチャンネル（オプション、省略時は現在のチャンネル）"
