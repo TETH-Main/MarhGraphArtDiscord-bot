@@ -26,7 +26,10 @@ def get_all_messages():
         params["api_key"] = API_KEY
     r = requests.get(API_URL, params=params)
     if r.status_code == 200:
-        return r.json()
+        try:
+            return r.json()
+        except Exception:
+            return []
     return []
 
 def add_or_update_message(key, content, embed=None):
