@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import logging
-from messages import get_message, get_all_message_keys
+from messages_gspread import get_message, get_all_messages
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -216,31 +216,27 @@ async def list_messages_command(interaction: discord.Interaction):
         await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
         return
     
-    keys = get_all_message_keys()
-    if keys:
+    messages = get_all_messages()
+    if messages:
         embed = discord.Embed(
             title="📝 利用可能なメッセージキー",
             color=discord.Color.blue()
         )
-        
-        for key in keys:
-            message_data = get_message(key)
-            content = message_data["content"]
+        for msg in messages:
+            key = msg.get("key")
+            content = msg.get("content", "")
             # コンテンツが長い場合は短縮
             if len(content) > 100:
                 content = content[:100] + "..."
-            
             embed_info = ""
-            if "embed" in message_data:
-                embed_data = message_data["embed"]
+            embed_data = msg.get("embed", {})
+            if embed_data:
                 embed_info = f"\n**Embed:** {embed_data.get('title', 'タイトルなし')}"
-            
             embed.add_field(
                 name=f"`{key}`",
                 value=f"**Content:** {content}{embed_info}",
                 inline=False
             )
-        
         await interaction.response.send_message(embed=embed, ephemeral=True)
     else:
         await interaction.response.send_message("登録されているメッセージがありません。", ephemeral=True)
