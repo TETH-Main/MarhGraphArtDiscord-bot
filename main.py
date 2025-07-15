@@ -260,6 +260,117 @@ async def edit_message_command(
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
+@bot.tree.command(name="add_message", description="管理者限定：新しいメッセージキーを追加")
+@app_commands.describe(
+    message_key="新しいメッセージのキー",
+    content="メッセージの内容",
+    embed_title="Embedのタイトル（オプション）",
+    embed_description="Embedの説明（オプション）",
+    embed_color="Embedの色（16進数、例: #FF0000）（オプション）"
+)
+async def add_message_command(
+    interaction: discord.Interaction,
+    message_key: str,
+    content: str,
+    embed_title: str = None,
+    embed_description: str = None,
+    embed_color: str = None
+):
+    """管理者限定：新しいメッセージキーを追加"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        # 既存のキーかチェック
+        existing_message = get_message(message_key)
+        if existing_message:
+            await interaction.response.send_message(f"メッセージキー '{message_key}' は既に存在します。編集したい場合は `/edit_message` を使用してください。", ephemeral=True)
+            return
+        
+        # 新しいメッセージデータを作成
+        new_message = {"content": content}
+        
+        # Embedデータがある場合は追加
+        if embed_title or embed_description or embed_color:
+            embed_data = {}
+            if embed_title:
+                embed_data["title"] = embed_title
+            if embed_description:
+                embed_data["description"] = embed_description
+            if embed_color:
+                embed_data["color"] = embed_color
+            new_message["embed"] = embed_data
+        
+        # メッセージを追加（messages.pyのMESSAGES辞書を直接更新）
+        from messages import MESSAGES
+        MESSAGES[message_key] = new_message
+        
+        # 確認メッセージを送信
+        embed = discord.Embed(
+            title="✅ メッセージ追加完了",
+            description=f"新しいメッセージキー `{message_key}` を追加しました。",
+            color=discord.Color.green()
+        )
+        
+        # 追加された内容を表示
+        embed.add_field(name="コンテンツ", value=content, inline=False)
+        
+        if "embed" in new_message:
+            embed_data = new_message["embed"]
+            embed_info = f"**タイトル:** {embed_data.get('title', 'なし')}\n"
+            embed_info += f"**説明:** {embed_data.get('description', 'なし')}\n"
+            embed_info += f"**色:** {embed_data.get('color', 'なし')}"
+            embed.add_field(name="Embed情報", value=embed_info, inline=False)
+        
+        embed.set_footer(text="⚠️ 注意: Bot再起動時に変更は失われます")
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="remove_message", description="管理者限定：メッセージキーを削除")
+@app_commands.describe(
+    message_key="削除するメッセージのキー"
+)
+async def remove_message_command(
+    interaction: discord.Interaction,
+    message_key: str
+):
+    """管理者限定：メッセージキーを削除"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        # メッセージが存在するかチェック
+        existing_message = get_message(message_key)
+        if not existing_message:
+            await interaction.response.send_message(f"メッセージキー '{message_key}' が見つかりません。", ephemeral=True)
+            return
+        
+        # メッセージを削除
+        from messages import MESSAGES
+        del MESSAGES[message_key]
+        
+        # 確認メッセージを送信
+        embed = discord.Embed(
+            title="🗑️ メッセージ削除完了",
+            description=f"メッセージキー `{message_key}` を削除しました。",
+            color=discord.Color.red()
+        )
+        embed.set_footer(text="⚠️ 注意: Bot再起動時に変更は失われます")
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
 # Botの実行
 if __name__ == "__main__":
     token = os.getenv('DISCORD_BOT_TOKEN')
