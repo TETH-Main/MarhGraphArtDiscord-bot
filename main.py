@@ -608,77 +608,66 @@ async def get_message_id_command(
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="test_welcome", description="管理者限定：welcomeメッセージをテスト送信")
+@bot.tree.command(name="extract_embed_text", description="管理者限定：Botが送信したEmbedメッセージをプレーンテキストで出力")
 @app_commands.describe(
-    user="welcomeメッセージを送信するユーザー（オプション、省略時は実行者）",
-    channel="送信先チャンネル（オプション、省略時は現在のチャンネル）"
+    message_id="対象メッセージのID",
+    channel="メッセージがあるチャンネル（オプション、省略時は現在のチャンネル）"
 )
-async def test_welcome_command(
+async def extract_embed_text_command(
     interaction: discord.Interaction,
-    user: discord.Member = None,
+    message_id: str,
     channel: discord.TextChannel = None
 ):
-    """管理者限定：welcomeメッセージをテスト送信"""
-    
+    """管理者限定：Botが送信したEmbedメッセージをプレーンテキストで出力"""
     # 管理者チェック
     if not is_admin(interaction):
         await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
         return
-    
     try:
-        # ユーザーとチャンネルの決定
-        target_user = user if user else interaction.user
+        # チャンネルの決定
         target_channel = channel if channel else interaction.channel
-        
-        # Welcomeメッセージのembedを作成
-        embed = discord.Embed(
-            title="関数アートサーバへようこそ！ 🎉",
-            description="Welcome to the Math Graph Art Server! 🎉",
-            color=0x00FF7F  # 明るい緑色
-        )
-        
-        # メンバーのアバターを設定
-        embed.set_thumbnail(url=target_user.avatar.url if target_user.avatar else target_user.default_avatar.url)
-        
-        # フィールドを追加
-        embed.add_field(
-            name="まずは、認証ロールを貰いましょう！",
-            value="First, get a Verified Human role!\nhttps://discord.com/channels/894421135985377290/894424053086044160/1078874458523189258",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="次に、自己紹介をしてみましょう！",
-            value="Then, let's introduce ourselves in this channel!\n<#896354528641818635>",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="最後に、あなたに合うロールをつけましょう",
-            value="Finally, get the role you need!\n<#1023514532544512141>",
-            inline=False
-        )
-        
-        # フッターを設定
-        embed.set_footer(
-            text=f"{target_user.display_name}さん、どうぞお楽しみください！",
-            icon_url=target_user.avatar.url if target_user.avatar else target_user.default_avatar.url
-        )
-        
-        # タイムスタンプを設定
-        embed.timestamp = discord.utils.utcnow()
-        
-        # メッセージを送信
-        await target_channel.send(f"{target_user.mention}", embed=embed)
-        
-        # 確認メッセージ
-        if target_channel != interaction.channel:
-            await interaction.response.send_message(f"Welcomeメッセージを {target_channel.mention} に送信しました。", ephemeral=True)
-        else:
-            await interaction.response.send_message("Welcomeメッセージを送信しました。", ephemeral=True)
-        
+        # メッセージIDを整数に変換
+        try:
+            msg_id = int(message_id)
+        except ValueError:
+            await interaction.response.send_message("無効なメッセージIDです。", ephemeral=True)
+            return
+        # メッセージを取得
+        try:
+            message = await target_channel.fetch_message(msg_id)
+        except discord.NotFound:
+            await interaction.response.send_message("指定されたメッセージが見つかりません。", ephemeral=True)
+            return
+        except discord.Forbidden:
+            await interaction.response.send_message("メッセージにアクセスする権限がありません。", ephemeral=True)
+            return
+        # Botが送信したメッセージか確認
+        if message.author != bot.user:
+            await interaction.response.send_message("このメッセージはBotが送信したものではありません。", ephemeral=True)
+            return
+        # Embedがあるか確認
+        if not message.embeds:
+            await interaction.response.send_message("このメッセージにはEmbedがありません。", ephemeral=True)
+            return
+        embed = message.embeds[0]
+        # Embed内容をテキスト化
+        text_parts = []
+        if embed.title:
+            text_parts.append(f"タイトル: {embed.title}")
+        if embed.description:
+            text_parts.append(f"説明: {embed.description}")
+        for field in embed.fields:
+            text_parts.append(f"{field.name}: {field.value}")
+        if embed.footer and embed.footer.text:
+            text_parts.append(f"フッター: {embed.footer.text}")
+        # 結果を送信
+        plain_text = "\n".join(text_parts)
+        if not plain_text:
+            plain_text = "Embedに表示可能なテキストがありません。"
+        await interaction.response.send_message(f"```{plain_text}```", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
 
 # Botの実行
 if __name__ == "__main__":
