@@ -618,7 +618,7 @@ async def extract_embed_text_command(
     message_id: str,
     channel: discord.TextChannel = None
 ):
-    """管理者限定：Botが送信したEmbedメッセージをプレーンテキストで出力"""
+    """管理者限定：Botが送信したEmbedメッセージをプレーンテキストで出力（長文は分割表示）"""
     # 管理者チェック
     if not is_admin(interaction):
         await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
@@ -664,7 +664,14 @@ async def extract_embed_text_command(
         plain_text = "\n".join(text_parts)
         if not plain_text:
             plain_text = "Embedに表示可能なテキストがありません。"
-        await interaction.response.send_message(f"```{plain_text}```", ephemeral=True)
+        # 2000文字ごとに分割して送信
+        max_length = 2000
+        chunks = [plain_text[i:i+max_length] for i in range(0, len(plain_text), max_length)]
+        for idx, chunk in enumerate(chunks):
+            if idx == 0:
+                await interaction.response.send_message(f"```{chunk}```", ephemeral=True)
+            else:
+                await interaction.followup.send(f"```{chunk}```", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
