@@ -27,6 +27,68 @@ class MyBot(commands.Bot):
         """Bot準備完了時"""
         print(f'{self.user} has connected to Discord!')
         print(f'Bot is in {len(self.guilds)} guilds')
+        print("Bot is ready and commands should be available!")
+    
+    async def on_member_join(self, member):
+        """新しいメンバーがサーバーに参加した時"""
+        try:
+            # Welcomeチャンネルを環境変数から取得
+            welcome_channel_id = os.getenv('WELCOME_CHANNEL_ID')
+            if not welcome_channel_id:
+                print("WELCOME_CHANNEL_ID環境変数が設定されていません。")
+                return
+            
+            # チャンネルを取得
+            channel = self.get_channel(int(welcome_channel_id))
+            if not channel:
+                print(f"Welcome チャンネル (ID: {welcome_channel_id}) が見つかりません。")
+                return
+            
+            # Welcomeメッセージのembedを作成
+            embed = discord.Embed(
+                title="関数アートサーバへようこそ！ 🎉",
+                description="Welcome to the Math Graph Art Server! 🎉",
+                color=0x00FF7F  # 明るい緑色
+            )
+            
+            # メンバーのアバターを設定
+            embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+            
+            # フィールドを追加
+            embed.add_field(
+                name="まずは、認証ロールを貰いましょう！",
+                value="First, get a Verified Human role!\nhttps://discord.com/channels/894421135985377290/894424053086044160/1078874458523189258",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="次に、自己紹介をしてみましょう！",
+                value="Then, let's introduce ourselves in this channel!\n<#896354528641818635>",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="最後に、あなたに合うロールをつけましょう",
+                value="Finally, get the role you need!\n<#1023514532544512141>",
+                inline=False
+            )
+            
+            # フッターを設定
+            embed.set_footer(
+                text=f"{member.display_name}さん、どうぞお楽しみください！",
+                icon_url=member.avatar.url if member.avatar else member.default_avatar.url
+            )
+            
+            # タイムスタンプを設定
+            embed.timestamp = discord.utils.utcnow()
+            
+            # メッセージを送信
+            await channel.send(f"{member.mention}", embed=embed)
+            
+            print(f"Welcome message sent for {member.name} ({member.id})")
+            
+        except Exception as e:
+            print(f"Error sending welcome message: {e}")
 
 bot = MyBot()
 
@@ -542,6 +604,78 @@ async def get_message_id_command(
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             except ValueError:
                 await interaction.response.send_message("無効な形式です。メッセージリンクまたはメッセージIDを入力してください。", ephemeral=True)
+        
+    except Exception as e:
+        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="test_welcome", description="管理者限定：welcomeメッセージをテスト送信")
+@app_commands.describe(
+    user="welcomeメッセージを送信するユーザー（オプション、省略時は実行者）",
+    channel="送信先チャンネル（オプション、省略時は現在のチャンネル）"
+)
+async def test_welcome_command(
+    interaction: discord.Interaction,
+    user: discord.Member = None,
+    channel: discord.TextChannel = None
+):
+    """管理者限定：welcomeメッセージをテスト送信"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        # ユーザーとチャンネルの決定
+        target_user = user if user else interaction.user
+        target_channel = channel if channel else interaction.channel
+        
+        # Welcomeメッセージのembedを作成
+        embed = discord.Embed(
+            title="関数アートサーバへようこそ！ 🎉",
+            description="Welcome to the Math Graph Art Server! 🎉",
+            color=0x00FF7F  # 明るい緑色
+        )
+        
+        # メンバーのアバターを設定
+        embed.set_thumbnail(url=target_user.avatar.url if target_user.avatar else target_user.default_avatar.url)
+        
+        # フィールドを追加
+        embed.add_field(
+            name="まずは、認証ロールを貰いましょう！",
+            value="First, get a Verified Human role!\nhttps://discord.com/channels/894421135985377290/894424053086044160/1078874458523189258",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="次に、自己紹介をしてみましょう！",
+            value="Then, let's introduce ourselves in this channel!\n<#896354528641818635>",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="最後に、あなたに合うロールをつけましょう",
+            value="Finally, get the role you need!\n<#1023514532544512141>",
+            inline=False
+        )
+        
+        # フッターを設定
+        embed.set_footer(
+            text=f"{target_user.display_name}さん、どうぞお楽しみください！",
+            icon_url=target_user.avatar.url if target_user.avatar else target_user.default_avatar.url
+        )
+        
+        # タイムスタンプを設定
+        embed.timestamp = discord.utils.utcnow()
+        
+        # メッセージを送信
+        await target_channel.send(f"{target_user.mention}", embed=embed)
+        
+        # 確認メッセージ
+        if target_channel != interaction.channel:
+            await interaction.response.send_message(f"Welcomeメッセージを {target_channel.mention} に送信しました。", ephemeral=True)
+        else:
+            await interaction.response.send_message("Welcomeメッセージを送信しました。", ephemeral=True)
         
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)

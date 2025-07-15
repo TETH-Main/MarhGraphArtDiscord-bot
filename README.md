@@ -5,14 +5,28 @@
 ## 📋 機能
 
 ### 基本コマンド
-- `/message` - 通常のメッセージとEmbedを送信
-- `/admin_message` - 管理者限定のメッセージコマンド
+- `/admin_message` - 管理者限定のメッセージ送信
 - `/ping` - Botの応答時間を確認
-- `/info` - Botの基本情報を表示
+
+### メッセージ管理機能
+- `/list_messages` - 利用可能なメッセージキー一覧を表示
+- `/add_message` - 新しいメッセージキーを追加
+- `/edit_message` - 登録済みメッセージを編集
+- `/remove_message` - メッセージキーを削除
+
+### 過去メッセージ編集機能
+- `/edit_bot_message` - Botが送信した過去のメッセージを直接編集
+- `/get_message_id` - メッセージリンクからIDを取得
+
+### 自動機能
+- **Welcome Message** - 新規メンバー参加時の自動歓迎メッセージ
+
+### テスト機能
+- `/test_welcome` - welcomeメッセージのテスト送信
 
 ### 管理機能
-- **ユーザーID制限**: 特定のユーザーIDのみがadminコマンドを使用可能
-- **ロール制限**: 指定されたロールを持つユーザーのみがadminコマンドを使用可能
+- **ユーザーID制限**: 特定のユーザーIDのみが管理者コマンドを使用可能
+- **ロール制限**: 指定されたロールを持つユーザーのみが管理者コマンドを使用可能
 - **チャンネル指定**: 管理者は任意のチャンネルにメッセージを送信可能
 
 ## 🚀 セットアップ
@@ -45,6 +59,9 @@ DISCORD_BOT_TOKEN=your_discord_bot_token_here
 # オプション（管理者設定）
 ADMIN_USER_IDS=123456789012345678,987654321098765432
 ADMIN_ROLES=Administrator,Moderator
+
+# オプション（Welcome機能）
+WELCOME_CHANNEL_ID=1234567890123456789
 ```
 
 4. **Botの実行**
@@ -92,6 +109,7 @@ Railwayのプロジェクト設定で以下の環境変数を設定：
 DISCORD_BOT_TOKEN=your_discord_bot_token
 ADMIN_USER_IDS=123456789012345678,987654321098765432
 ADMIN_ROLES=Administrator,Moderator
+WELCOME_CHANNEL_ID=1234567890123456789
 ```
 
 ### 3. デプロイ
