@@ -292,9 +292,9 @@ async def edit_message_command(
             if new_embed_color:
                 updated_message["embed"]["color"] = new_embed_color
         
-        # メッセージを更新（messages.pyのMESSAGES辞書を直接更新）
-        from messages import MESSAGES
-        MESSAGES[message_key] = updated_message
+        # メッセージを更新（スプレッドシートAPIで更新）
+        from messages_gspread import add_or_update_message
+        success = add_or_update_message(message_key, updated_message["content"], updated_message.get("embed", {}))
         
         # 確認メッセージを送信
         embed = discord.Embed(
@@ -362,9 +362,9 @@ async def add_message_command(
                 embed_data["color"] = embed_color
             new_message["embed"] = embed_data
         
-        # メッセージを追加（messages.pyのMESSAGES辞書を直接更新）
-        from messages import MESSAGES
-        MESSAGES[message_key] = new_message
+        # メッセージを追加（スプレッドシートAPIで追加）
+        from messages_gspread import add_or_update_message
+        success = add_or_update_message(message_key, new_message["content"], new_message.get("embed", {}))
         
         # 確認メッセージを送信
         embed = discord.Embed(
@@ -412,9 +412,9 @@ async def remove_message_command(
             await interaction.response.send_message(f"メッセージキー '{message_key}' が見つかりません。", ephemeral=True)
             return
         
-        # メッセージを削除
-        from messages import MESSAGES
-        del MESSAGES[message_key]
+        # メッセージを削除（スプレッドシートAPIで削除）
+        from messages_gspread import remove_message
+        success = remove_message(message_key)
         
         # 確認メッセージを送信
         embed = discord.Embed(
