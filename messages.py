@@ -52,3 +52,16 @@ def remove_message(key: str):
         del MESSAGES[key]
         return True
     return False
+
+def update_message(key: str, content: str = None, embed_data: dict = None):
+    """既存のメッセージを更新"""
+    if key not in MESSAGES:
+        return False
+    
+    if content:
+        MESSAGES[key]["content"] = content
+    
+    if embed_data:
+        MESSAGES[key]["embed"] = embed_data
+    
+    return True

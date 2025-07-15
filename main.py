@@ -54,74 +54,6 @@ def is_admin(interaction: discord.Interaction) -> bool:
     
     return False
 
-@bot.tree.command(name="message", description="メッセージを送信します")
-@app_commands.describe(
-    message_key="送信するメッセージのキー（オプション）",
-    content="送信するメッセージの内容",
-    embed_title="Embedのタイトル（オプション）",
-    embed_description="Embedの説明（オプション）",
-    embed_color="Embedの色（16進数、例: #FF0000）"
-)
-async def message_command(
-    interaction: discord.Interaction,
-    content: str = None,
-    message_key: str = None,
-    embed_title: str = None,
-    embed_description: str = None,
-    embed_color: str = None
-):
-    """通常のメッセージコマンド"""
-    try:
-        # メッセージキーが指定されている場合は、登録されたメッセージを使用
-        if message_key:
-            message_data = get_message(message_key)
-            if message_data:
-                content = message_data["content"]
-                if "embed" in message_data:
-                    embed_data = message_data["embed"]
-                    embed_title = embed_data.get("title")
-                    embed_description = embed_data.get("description")
-                    embed_color = embed_data.get("color")
-            else:
-                await interaction.response.send_message(f"メッセージキー '{message_key}' が見つかりません。", ephemeral=True)
-                return
-        
-        if not content:
-            await interaction.response.send_message("メッセージの内容またはメッセージキーを指定してください。", ephemeral=True)
-            return
-        
-        # 通常のメッセージを送信
-        await interaction.response.send_message(content)
-        
-        # Embedが指定されている場合は追加で送信
-        if embed_title or embed_description:
-            embed = discord.Embed()
-            
-            if embed_title:
-                embed.title = embed_title
-            
-            if embed_description:
-                embed.description = embed_description
-            
-            # 色の設定
-            if embed_color:
-                try:
-                    # #を除去して16進数として解釈
-                    color_hex = embed_color.lstrip('#')
-                    embed.color = int(color_hex, 16)
-                except ValueError:
-                    embed.color = discord.Color.blue()
-            else:
-                embed.color = discord.Color.blue()
-            
-            # フッターを追加
-            embed.set_footer(text=f"送信者: {interaction.user.display_name}")
-            
-            await interaction.followup.send(embed=embed)
-            
-    except Exception as e:
-        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
-
 @bot.tree.command(name="admin_message", description="管理者限定メッセージコマンド")
 @app_commands.describe(
     message_key="送信するメッセージのキー（オプション）",
@@ -213,20 +145,120 @@ async def ping_command(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)
     await interaction.response.send_message(f"🏓 Pong! レイテンシ: {latency}ms")
 
-@bot.tree.command(name="list_messages", description="利用可能なメッセージキー一覧を表示")
+@bot.tree.command(name="list_messages", description="管理者限定：利用可能なメッセージキー一覧を表示")
 async def list_messages_command(interaction: discord.Interaction):
-    """利用可能なメッセージキー一覧を表示"""
+    """管理者限定：利用可能なメッセージキー一覧を表示"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
     keys = get_all_message_keys()
     if keys:
-        key_list = "\n".join([f"• `{key}`" for key in keys])
         embed = discord.Embed(
             title="📝 利用可能なメッセージキー",
-            description=key_list,
             color=discord.Color.blue()
         )
-        await interaction.response.send_message(embed=embed)
+        
+        for key in keys:
+            message_data = get_message(key)
+            content = message_data["content"]
+            # コンテンツが長い場合は短縮
+            if len(content) > 100:
+                content = content[:100] + "..."
+            
+            embed_info = ""
+            if "embed" in message_data:
+                embed_data = message_data["embed"]
+                embed_info = f"\n**Embed:** {embed_data.get('title', 'タイトルなし')}"
+            
+            embed.add_field(
+                name=f"`{key}`",
+                value=f"**Content:** {content}{embed_info}",
+                inline=False
+            )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
     else:
-        await interaction.response.send_message("登録されているメッセージがありません。")
+        await interaction.response.send_message("登録されているメッセージがありません。", ephemeral=True)
+
+@bot.tree.command(name="edit_message", description="管理者限定：登録済みメッセージを編集")
+@app_commands.describe(
+    message_key="編集するメッセージのキー",
+    new_content="新しいメッセージ内容（オプション）",
+    new_embed_title="新しいEmbedタイトル（オプション）",
+    new_embed_description="新しいEmbed説明（オプション）",
+    new_embed_color="新しいEmbed色（16進数、例: #FF0000）（オプション）"
+)
+async def edit_message_command(
+    interaction: discord.Interaction,
+    message_key: str,
+    new_content: str = None,
+    new_embed_title: str = None,
+    new_embed_description: str = None,
+    new_embed_color: str = None
+):
+    """管理者限定：登録済みメッセージを編集"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        # 既存のメッセージを取得
+        existing_message = get_message(message_key)
+        if not existing_message:
+            await interaction.response.send_message(f"メッセージキー '{message_key}' が見つかりません。", ephemeral=True)
+            return
+        
+        # 新しいメッセージデータを作成
+        updated_message = existing_message.copy()
+        
+        # コンテンツの更新
+        if new_content:
+            updated_message["content"] = new_content
+        
+        # Embedの更新
+        if new_embed_title or new_embed_description or new_embed_color:
+            if "embed" not in updated_message:
+                updated_message["embed"] = {}
+            
+            if new_embed_title:
+                updated_message["embed"]["title"] = new_embed_title
+            
+            if new_embed_description:
+                updated_message["embed"]["description"] = new_embed_description
+            
+            if new_embed_color:
+                updated_message["embed"]["color"] = new_embed_color
+        
+        # メッセージを更新（messages.pyのMESSAGES辞書を直接更新）
+        from messages import MESSAGES
+        MESSAGES[message_key] = updated_message
+        
+        # 確認メッセージを送信
+        embed = discord.Embed(
+            title="✅ メッセージ編集完了",
+            description=f"メッセージキー `{message_key}` を更新しました。",
+            color=discord.Color.green()
+        )
+        
+        # 更新された内容を表示
+        embed.add_field(name="更新後のコンテンツ", value=updated_message["content"], inline=False)
+        
+        if "embed" in updated_message:
+            embed_data = updated_message["embed"]
+            embed_info = f"**タイトル:** {embed_data.get('title', 'なし')}\n"
+            embed_info += f"**説明:** {embed_data.get('description', 'なし')}\n"
+            embed_info += f"**色:** {embed_data.get('color', 'なし')}"
+            embed.add_field(name="Embed情報", value=embed_info, inline=False)
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
 # Botの実行
 if __name__ == "__main__":
