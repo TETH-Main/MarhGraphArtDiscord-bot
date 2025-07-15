@@ -371,6 +371,181 @@ async def remove_message_command(
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
+@bot.tree.command(name="edit_bot_message", description="管理者限定：Botが送信した過去のメッセージを編集")
+@app_commands.describe(
+    message_id="編集するメッセージのID",
+    new_content="新しいメッセージ内容（オプション）",
+    new_embed_title="新しいEmbedタイトル（オプション）",
+    new_embed_description="新しいEmbed説明（オプション）",
+    new_embed_color="新しいEmbed色（16進数、例: #FF0000）（オプション）",
+    channel="メッセージがあるチャンネル（オプション、省略時は現在のチャンネル）"
+)
+async def edit_bot_message_command(
+    interaction: discord.Interaction,
+    message_id: str,
+    new_content: str = None,
+    new_embed_title: str = None,
+    new_embed_description: str = None,
+    new_embed_color: str = None,
+    channel: discord.TextChannel = None
+):
+    """管理者限定：Botが送信した過去のメッセージを編集"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        # チャンネルの決定
+        target_channel = channel if channel else interaction.channel
+        
+        # メッセージIDを整数に変換
+        try:
+            msg_id = int(message_id)
+        except ValueError:
+            await interaction.response.send_message("無効なメッセージIDです。", ephemeral=True)
+            return
+        
+        # メッセージを取得
+        try:
+            message = await target_channel.fetch_message(msg_id)
+        except discord.NotFound:
+            await interaction.response.send_message("指定されたメッセージが見つかりません。", ephemeral=True)
+            return
+        except discord.Forbidden:
+            await interaction.response.send_message("メッセージにアクセスする権限がありません。", ephemeral=True)
+            return
+        
+        # Botが送信したメッセージか確認
+        if message.author != bot.user:
+            await interaction.response.send_message("このメッセージはBotが送信したものではありません。", ephemeral=True)
+            return
+        
+        # 編集内容が何も指定されていない場合
+        if not any([new_content, new_embed_title, new_embed_description, new_embed_color]):
+            await interaction.response.send_message("編集する内容を少なくとも1つ指定してください。", ephemeral=True)
+            return
+        
+        # 現在の内容を取得
+        current_content = message.content if message.content else None
+        current_embeds = message.embeds
+        
+        # 新しい内容を設定
+        edited_content = new_content if new_content else current_content
+        
+        # Embedの処理
+        edited_embed = None
+        if new_embed_title or new_embed_description or new_embed_color:
+            # 既存のEmbedがある場合はそれをベースにする
+            if current_embeds:
+                embed_dict = current_embeds[0].to_dict()
+                edited_embed = discord.Embed.from_dict(embed_dict)
+            else:
+                edited_embed = discord.Embed()
+            
+            # 新しいEmbed内容を設定
+            if new_embed_title:
+                edited_embed.title = new_embed_title
+            if new_embed_description:
+                edited_embed.description = new_embed_description
+            if new_embed_color:
+                try:
+                    color_hex = new_embed_color.lstrip('#')
+                    edited_embed.color = int(color_hex, 16)
+                except ValueError:
+                    edited_embed.color = discord.Color.blue()
+        elif current_embeds:
+            # 新しいEmbed情報がないが既存のEmbedがある場合はそのまま保持
+            edited_embed = current_embeds[0]
+        
+        # メッセージを編集
+        if edited_embed:
+            await message.edit(content=edited_content, embed=edited_embed)
+        else:
+            await message.edit(content=edited_content)
+        
+        # 確認メッセージを送信
+        confirm_embed = discord.Embed(
+            title="✅ メッセージ編集完了",
+            description=f"メッセージID `{message_id}` を編集しました。",
+            color=discord.Color.green()
+        )
+        
+        if target_channel != interaction.channel:
+            confirm_embed.add_field(
+                name="編集されたメッセージ", 
+                value=f"[こちらをクリック](https://discord.com/channels/{interaction.guild.id}/{target_channel.id}/{message_id})",
+                inline=False
+            )
+        
+        await interaction.response.send_message(embed=confirm_embed, ephemeral=True)
+        
+    except Exception as e:
+        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="get_message_id", description="管理者限定：指定したメッセージのIDを取得")
+@app_commands.describe(
+    message_link="メッセージのリンクまたはメッセージID"
+)
+async def get_message_id_command(
+    interaction: discord.Interaction,
+    message_link: str
+):
+    """管理者限定：指定したメッセージのIDを取得（メッセージリンクから）"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        # メッセージリンクからIDを抽出
+        if "discord.com/channels/" in message_link:
+            # Discord メッセージリンクの形式: https://discord.com/channels/guild_id/channel_id/message_id
+            parts = message_link.split("/")
+            if len(parts) >= 3:
+                message_id = parts[-1]
+                channel_id = parts[-2]
+                guild_id = parts[-3]
+                
+                embed = discord.Embed(
+                    title="📋 メッセージ情報",
+                    color=discord.Color.blue()
+                )
+                embed.add_field(name="メッセージID", value=f"`{message_id}`", inline=False)
+                embed.add_field(name="チャンネルID", value=f"`{channel_id}`", inline=False)
+                embed.add_field(name="サーバーID", value=f"`{guild_id}`", inline=False)
+                embed.add_field(
+                    name="使用例", 
+                    value=f"`/edit_bot_message message_id:{message_id} new_content:新しいメッセージ内容`",
+                    inline=False
+                )
+                
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message("無効なメッセージリンクです。", ephemeral=True)
+        else:
+            # 数字のみの場合はメッセージIDとして扱う
+            try:
+                int(message_link)
+                embed = discord.Embed(
+                    title="📋 メッセージID確認",
+                    description=f"メッセージID: `{message_link}`",
+                    color=discord.Color.blue()
+                )
+                embed.add_field(
+                    name="使用例", 
+                    value=f"`/edit_bot_message message_id:{message_link} new_content:新しいメッセージ内容`",
+                    inline=False
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            except ValueError:
+                await interaction.response.send_message("無効な形式です。メッセージリンクまたはメッセージIDを入力してください。", ephemeral=True)
+        
+    except Exception as e:
+        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
 # Botの実行
 if __name__ == "__main__":
     token = os.getenv('DISCORD_BOT_TOKEN')
