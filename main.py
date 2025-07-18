@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import logging
+from datetime import time, timezone, timedelta
 from messages_gspread import get_message, get_all_messages
 from firebase_client import FirebaseClient
 
@@ -33,9 +34,9 @@ class MyBot(commands.Bot):
         print(f'Bot is in {len(self.guilds)} guilds')
         print("Bot is ready and commands should be available!")
     
-    @tasks.loop(hours=24)
+    @tasks.loop(time=time(hour=0, minute=0, tzinfo=timezone(timedelta(hours=9))))
     async def daily_formula_notification(self):
-        """毎日の数式通知タスク"""
+        """毎日0時（日本時間）の数式通知タスク"""
         try:
             # 通知チャンネルを環境変数から取得
             notification_channel_id = os.getenv('FORMULA_NOTIFICATION_CHANNEL_ID')
@@ -830,6 +831,203 @@ async def send_formula_notification_command(interaction: discord.Interaction):
         
     except Exception as e:
         await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@app_commands.default_permissions(administrator=True)
+@bot.tree.command(name="test_formula_embed", description="管理者限定：数式通知のEmbedスタイルをテスト表示")
+async def test_formula_embed_command(interaction: discord.Interaction):
+    """管理者限定：数式通知のEmbedスタイルをテスト表示"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        await interaction.response.defer(ephemeral=True)
+        
+        # テスト用のサンプルデータを作成
+        sample_formulas = [
+            {
+                'id': 'test001',
+                'title': 'サンプル数式1：美しい螺旋',
+                'title_EN': 'Sample Formula 1: Beautiful Spiral',
+                'formula': 'r = a * theta^2 + b * sin(c * theta)',
+                'formula_type': ['極座標', '螺旋'],
+                'tags': ['美しい', '螺旋', '数学アート'],
+                'image_url': 'https://via.placeholder.com/600x400/FF6B6B/FFFFFF?text=Sample+Formula+1',
+                'timestamp': '2025/07/19 12:30:45'
+            },
+            {
+                'id': 'test002',
+                'title': 'サンプル数式2：フラクタル図形',
+                'title_EN': 'Sample Formula 2: Fractal Pattern',
+                'formula': 'z_{n+1} = z_n^2 + c, where c = -0.7269 + 0.1889i',
+                'formula_type': ['複素数', 'フラクタル'],
+                'tags': ['フラクタル', '複素数', 'マンデルブロ'],
+                'image_url': 'https://via.placeholder.com/600x400/4ECDC4/FFFFFF?text=Sample+Formula+2',
+                'timestamp': '2025/07/19 15:22:10'
+            },
+            {
+                'id': 'test003',
+                'title': 'サンプル数式3：波動パターン',
+                'title_EN': 'Sample Formula 3: Wave Pattern',
+                'formula': 'y = A * sin(ωx + φ) * exp(-αx)',
+                'formula_type': ['三角関数', '減衰波'],
+                'tags': ['波動', '三角関数', '物理'],
+                'image_url': 'https://via.placeholder.com/600x400/45B7D1/FFFFFF?text=Sample+Formula+3',
+                'timestamp': '2025/07/19 18:45:33'
+            }
+        ]
+        
+        # テスト用Embedを作成（実際の通知と同じスタイル）
+        embed = discord.Embed(
+            title=f"数式通知テスト ({len(sample_formulas)}件)",
+            description="これは数式通知のEmbedスタイルのテスト表示です。",
+            color=0x00FF7F
+        )
+        
+        # サンプル数式を表示
+        for i, formula_data in enumerate(sample_formulas):
+            field_value = f"**数式:** {formula_data['formula'][:100]}{'...' if len(formula_data['formula']) > 100 else ''}\n"
+            field_value += f"**タイプ:** {', '.join(formula_data['formula_type'])}\n"
+            field_value += f"**タグ:** {', '.join(formula_data['tags'])}\n"
+            field_value += f"**登録時刻:** {formula_data['timestamp']}"
+            
+            embed.add_field(
+                name=f"{i+1}. {formula_data['title']}",
+                value=field_value,
+                inline=False
+            )
+        
+        embed.add_field(
+            name="📝 注意",
+            value="これはテスト表示です。実際のデータではありません。",
+            inline=False
+        )
+        
+        embed.set_footer(text="Math Graph Art - Test Display")
+        embed.timestamp = discord.utils.utcnow()
+        
+        # 最初のサンプル画像を設定
+        if sample_formulas and sample_formulas[0].get('image_url'):
+            embed.set_image(url=sample_formulas[0]['image_url'])
+        
+        await interaction.channel.send(embed=embed)
+        await interaction.followup.send("テスト用のEmbed表示を送信しました。", ephemeral=True)
+        
+    except Exception as e:
+        await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@app_commands.default_permissions(administrator=True)
+@bot.tree.command(name="check_formula_status", description="管理者限定：現在のFirebase接続状況と今日の数式登録状況を確認")
+async def check_formula_status_command(interaction: discord.Interaction):
+    """管理者限定：現在のFirebase接続状況と今日の数式登録状況を確認"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        await interaction.response.defer(ephemeral=True)
+        
+        # Firebase接続テスト
+        try:
+            firebase_client = FirebaseClient()
+            connection_status = "✅ 正常"
+        except Exception as e:
+            connection_status = f"❌ エラー: {str(e)}"
+            await interaction.followup.send(f"Firebase接続エラー: {str(e)}", ephemeral=True)
+            return
+        
+        # 今日の数式取得テスト
+        try:
+            today_formulas = firebase_client.get_today_formulas()
+            formula_count = len(today_formulas)
+            formula_status = f"✅ 今日の登録: {formula_count}件"
+        except Exception as e:
+            formula_status = f"❌ 取得エラー: {str(e)}"
+            formula_count = 0
+        
+        # ステータス情報をEmbedで表示
+        embed = discord.Embed(
+            title="🔍 Firebase 接続・データ状況",
+            color=0x00FF7F if connection_status.startswith("✅") else 0xFF0000
+        )
+        
+        embed.add_field(
+            name="Firebase接続状況",
+            value=connection_status,
+            inline=False
+        )
+        
+        embed.add_field(
+            name="今日の数式登録状況",
+            value=formula_status,
+            inline=False
+        )
+        
+        # 環境変数チェック
+        env_checks = []
+        required_envs = [
+            ('FIREBASE_CREDENTIALS', 'Firebase認証情報'),
+            ('FORMULA_NOTIFICATION_CHANNEL_ID', '通知チャンネルID')
+        ]
+        
+        for env_var, description in required_envs:
+            value = os.getenv(env_var)
+            if value:
+                env_checks.append(f"✅ {description}")
+            else:
+                env_checks.append(f"❌ {description} (未設定)")
+        
+        embed.add_field(
+            name="環境変数設定状況",
+            value="\n".join(env_checks),
+            inline=False
+        )
+        
+        # 通知チャンネル確認
+        notification_channel_id = os.getenv('FORMULA_NOTIFICATION_CHANNEL_ID')
+        if notification_channel_id:
+            try:
+                channel = bot.get_channel(int(notification_channel_id))
+                if channel:
+                    channel_status = f"✅ チャンネル: #{channel.name}"
+                else:
+                    channel_status = "❌ チャンネルが見つかりません"
+            except:
+                channel_status = "❌ 無効なチャンネルID"
+        else:
+            channel_status = "❌ チャンネルID未設定"
+        
+        embed.add_field(
+            name="通知チャンネル状況",
+            value=channel_status,
+            inline=False
+        )
+        
+        # 次回通知予定時刻
+        from datetime import datetime
+        jst = timezone(timedelta(hours=9))
+        now_jst = datetime.now(jst)
+        next_notification = now_jst.replace(hour=0, minute=0, second=0, microsecond=0)
+        if next_notification <= now_jst:
+            next_notification += timedelta(days=1)
+        
+        embed.add_field(
+            name="次回自動通知予定",
+            value=f"🕐 {next_notification.strftime('%Y/%m/%d %H:%M:%S')} (JST)",
+            inline=False
+        )
+        
+        embed.set_footer(text="Math Graph Art - System Status")
+        embed.timestamp = discord.utils.utcnow()
+        
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await interaction.followup.send(f"ステータス確認エラー: {str(e)}", ephemeral=True)
 
 
 # Botの実行

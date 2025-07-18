@@ -20,10 +20,12 @@
 
 ### 自動機能
 - **Welcome Message** - 新規メンバー参加時の自動歓迎メッセージ
-- **Daily Formula Notification** - 毎日の数式登録通知（Firebase連携）
+- **Daily Formula Notification** - 毎日0時（日本時間）の数式登録通知（Firebase連携）
 
 ### Firebase連携機能
 - `/send_formula_notification` - 今日登録された数式の手動通知送信
+- `/test_formula_embed` - 数式通知のEmbedスタイルをテスト表示
+- `/check_formula_status` - Firebase接続状況と今日の数式登録状況を確認
 
 
 ### 管理機能
