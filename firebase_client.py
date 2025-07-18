@@ -64,6 +64,38 @@ class FirebaseClient:
             print(f"Firebase取得エラー: {e}")
             return []
     
+    def get_random_formula(self):
+        """
+        Firestoreからランダムに1つの数式を取得
+        
+        Returns:
+            dict: ランダムな数式データ、エラー時はNone
+        """
+        try:
+            # 全ての数式を取得してからランダムに選択
+            # より効率的な方法もあるが、データ量が少ない場合はこの方法で十分
+            items_ref = self.db.collection('items')
+            
+            # 全ドキュメントを取得
+            all_docs = []
+            for doc in items_ref.stream():
+                data = doc.to_dict()
+                data['id'] = doc.id
+                all_docs.append(data)
+            
+            if not all_docs:
+                return None
+            
+            # ランダムに1つ選択
+            import random
+            random_formula = random.choice(all_docs)
+            
+            return random_formula
+            
+        except Exception as e:
+            print(f"ランダム数式取得エラー: {e}")
+            return None
+    
     def get_tag_name(self, tag_id):
         """
         タグIDからタグ名を取得

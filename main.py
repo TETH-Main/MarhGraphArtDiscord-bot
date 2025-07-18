@@ -296,6 +296,67 @@ async def ping_command(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)
     await interaction.response.send_message(f"🏓 Pong! レイテンシ: {latency}ms")
 
+@bot.tree.command(name="random_formula", description="Grapharyからランダムに数式を1つ表示します")
+async def random_formula_command(interaction: discord.Interaction):
+    """誰でも使える：ランダムな数式を表示"""
+    try:
+        await interaction.response.defer()
+        
+        # Firebaseからランダムな数式を取得
+        firebase_client = FirebaseClient()
+        random_formula = firebase_client.get_random_formula()
+        
+        if not random_formula:
+            # 数式が見つからない場合
+            embed = discord.Embed(
+                title="数式が見つかりません",
+                description="現在、表示できる数式がありません。",
+                color=0x888888
+            )
+            embed.set_footer(text="Graph + Library = Graphary")
+            await interaction.followup.send(embed=embed)
+            return
+        
+        # 数式データをフォーマット
+        formatted_data = firebase_client.format_formula_for_discord(random_formula)
+        
+        # Embedを作成（通知と同じスタイル）
+        embed = discord.Embed(
+            title=formatted_data['title'],
+            description=f"```\n{formatted_data['formula']}\n```",
+            color=0x00FF7F,
+            url=f"https://teth-main.github.io/Graphary/?formulaId={formatted_data['id']}"
+        )
+        
+        # 数式タイプを追加
+        if formatted_data['formula_type']:
+            type_list = "\n".join([f"`{t}`" for t in formatted_data['formula_type'].split(', ')])
+            embed.add_field(
+                name="数式タイプ",
+                value=type_list,
+                inline=True
+            )
+        
+        # タグを追加
+        if formatted_data['tags'] and formatted_data['tags'] != 'なし':
+            tag_list = "\n".join([f"`{t}`" for t in formatted_data['tags'].split(', ')])
+            embed.add_field(
+                name="タグ",
+                value=tag_list,
+                inline=True
+            )
+        
+        # 画像を設定（大きく表示）
+        if formatted_data['image_url']:
+            embed.set_image(url=formatted_data['image_url'])
+        
+        embed.set_footer(text="Graph + Library = Graphary")
+        
+        await interaction.followup.send(embed=embed)
+        
+    except Exception as e:
+        await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
 @app_commands.default_permissions(administrator=True)
 @bot.tree.command(name="list_messages", description="管理者限定：利用可能なメッセージキー一覧を表示")
 async def list_messages_command(interaction: discord.Interaction):
