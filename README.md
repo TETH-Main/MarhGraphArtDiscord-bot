@@ -20,6 +20,10 @@
 
 ### 自動機能
 - **Welcome Message** - 新規メンバー参加時の自動歓迎メッセージ
+- **Daily Formula Notification** - 毎日の数式登録通知（Firebase連携）
+
+### Firebase連携機能
+- `/send_formula_notification` - 今日登録された数式の手動通知送信
 
 
 ### 管理機能
@@ -60,6 +64,10 @@ ADMIN_ROLES=Administrator,Moderator
 
 # オプション（Welcome機能）
 WELCOME_CHANNEL_ID=1234567890123456789
+
+# Firebase連携（数式通知機能）
+FIREBASE_CREDENTIALS={"type":"service_account","project_id":"your-project-id",...}
+FORMULA_NOTIFICATION_CHANNEL_ID=1234567890123456789
 ```
 
 4. **Botの実行**
@@ -91,6 +99,26 @@ OAuth2セクションで以下のスコープを選択：
 - `bot`
 - `applications.commands`
 
+## Firebase セットアップ
+
+### 1. Firebase プロジェクトの準備
+
+1. [Firebase Console](https://console.firebase.google.com) でプロジェクトを作成
+2. Firestore Database を有効化
+3. 以下のコレクションを作成：
+   - `items` - 数式データ（formula, formula_type, id, image_url, tags, title, title_EN, timestamp）
+   - `tagsList` - タグリスト（tagID, tagName, tagName_EN）
+
+### 2. サービスアカウントの設定
+
+1. Firebase Console → プロジェクト設定 → サービスアカウント
+2. 「新しい秘密鍵の生成」でJSONファイルをダウンロード
+3. JSONファイルの内容を文字列として`FIREBASE_CREDENTIALS`環境変数に設定
+
+### 3. 通知機能の設定
+
+環境変数`FORMULA_NOTIFICATION_CHANNEL_ID`に通知を送信するDiscordチャンネルIDを設定
+
 ## Railway デプロイ
 
 ### 1. Railway プロジェクトの作成
@@ -108,6 +136,8 @@ DISCORD_BOT_TOKEN=your_discord_bot_token
 ADMIN_USER_IDS=123456789012345678,987654321098765432
 ADMIN_ROLES=Administrator,Moderator
 WELCOME_CHANNEL_ID=1234567890123456789
+FIREBASE_CREDENTIALS={"type":"service_account","project_id":"your-project-id",...}
+FORMULA_NOTIFICATION_CHANNEL_ID=1234567890123456789
 ```
 
 ### 3. デプロイ
@@ -175,12 +205,14 @@ async def custom_command(interaction: discord.Interaction):
 
 ```
 MarhGraphArtDiscord-bot/
-├── bot.py              # メインのBotファイル
-├── requirements.txt    # Python依存関係
-├── Dockerfile         # Docker設定
-├── railway.json       # Railway設定
-├── .gitignore        # Git無視ファイル
-└── README.md         # このファイル
+├── main.py              # メインのBotファイル
+├── firebase_client.py   # Firebase連携クライアント
+├── messages_gspread.py  # Google Sheets連携
+├── requirements.txt     # Python依存関係
+├── Dockerfile          # Docker設定
+├── railway.json        # Railway設定
+├── .gitignore         # Git無視ファイル
+└── README.md          # このファイル
 ```
 
 ## トラブルシューティング
