@@ -4,6 +4,8 @@ from discord.ext import commands
 from discord import app_commands
 import logging
 from messages_gspread import get_message, get_all_messages
+from formulas_gspread import get_formula, get_all_formulas, get_formulas_by_type, search_formulas, get_random_formula, format_formula_for_display, get_available_formula_types
+from daily_notifier import DailyFormulaNotifier
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +30,37 @@ class MyBot(commands.Bot):
         print(f'{self.user} has connected to Discord!')
         print(f'Bot is in {len(self.guilds)} guilds')
         print("Bot is ready and commands should be available!")
+        
+        # 毎日通知機能を開始
+        await self.start_daily_notifier()
+    
+    async def start_daily_notifier(self):
+        """毎日通知機能を開始"""
+        global daily_notifier
+        
+        # 通知チャンネルIDを環境変数から取得
+        notification_channel_id = os.getenv('DAILY_NOTIFICATION_CHANNEL_ID')
+        if not notification_channel_id:
+            print("DAILY_NOTIFICATION_CHANNEL_ID環境変数が設定されていません。毎日通知機能は無効です。")
+            return
+        
+        try:
+            channel_id = int(notification_channel_id)
+            daily_notifier = DailyFormulaNotifier(self, channel_id)
+            daily_notifier.start()
+            print(f"毎日通知機能を開始しました。通知チャンネル: {channel_id}")
+        except ValueError:
+            print("DAILY_NOTIFICATION_CHANNEL_IDが無効な値です。毎日通知機能は無効です。")
+    
+    async def close(self):
+        """Bot終了時の処理"""
+        global daily_notifier
+        
+        if daily_notifier:
+            daily_notifier.stop()
+            print("毎日通知機能を停止しました。")
+        
+        await super().close()
     
     async def on_member_join(self, member):
         """新しいメンバーがサーバーに参加した時"""
@@ -101,6 +134,9 @@ if os.getenv('ADMIN_USER_IDS'):
 ADMIN_ROLES = []
 if os.getenv('ADMIN_ROLES'):
     ADMIN_ROLES = [role.strip() for role in os.getenv('ADMIN_ROLES').split(',')]
+
+# 毎日通知機能の初期化
+daily_notifier = None
 
 def is_admin(interaction: discord.Interaction) -> bool:
     """管理者かどうかチェック"""
@@ -678,6 +714,297 @@ async def extract_embed_text_command(
                 await interaction.followup.send(f"```{chunk}```", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="formula", description="数式データを取得します")
+@app_commands.describe(
+    formula_id="取得する数式のID（オプション）",
+    formula_type="数式のタイプで絞り込み（オプション）",
+    search="タイトルやタグで検索（オプション）",
+    random="ランダムな数式を取得（オプション）"
+)
+async def formula_command(
+    interaction: discord.Interaction,
+    formula_id: str = None,
+    formula_type: str = None,
+    search: str = None,
+    random: bool = False
+):
+    """数式データを取得・表示"""
+    
+    try:
+        await interaction.response.defer()
+        
+        formula_data = None
+        
+        if random:
+            # ランダム取得
+            formula_data = get_random_formula()
+            if formula_data:
+                embed = discord.Embed(
+                    title="ランダム数式",
+                    description=format_formula_for_display(formula_data),
+                    color=discord.Color.green()
+                )
+                if formula_data.get('image_url'):
+                    embed.set_image(url=formula_data['image_url'])
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send("数式データが見つかりませんでした。")
+                
+        elif formula_id:
+            # 特定ID取得
+            formula_data = get_formula(formula_id)
+            if formula_data:
+                embed = discord.Embed(
+                    title=f"数式データ: {formula_data.get('title', 'N/A')}",
+                    description=format_formula_for_display(formula_data),
+                    color=discord.Color.blue()
+                )
+                if formula_data.get('image_url'):
+                    embed.set_image(url=formula_data['image_url'])
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send(f"ID '{formula_id}' の数式データが見つかりませんでした。")
+                
+        elif search:
+            # 検索
+            formulas = search_formulas(search)
+            if formulas:
+                embed = discord.Embed(
+                    title=f"検索結果: '{search}'",
+                    color=discord.Color.orange()
+                )
+                
+                for i, formula in enumerate(formulas[:5]):  # 最大5件まで表示
+                    embed.add_field(
+                        name=f"{formula.get('id', 'N/A')} - {formula.get('title', 'N/A')}",
+                        value=f"タイプ: {formula.get('formula_type', 'N/A')}\n数式: `{formula.get('formula', 'N/A')[:50]}...`" if len(formula.get('formula', '')) > 50 else f"タイプ: {formula.get('formula_type', 'N/A')}\n数式: `{formula.get('formula', 'N/A')}`",
+                        inline=False
+                    )
+                
+                if len(formulas) > 5:
+                    embed.set_footer(text=f"他に{len(formulas) - 5}件の結果があります。")
+                
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send(f"'{search}' の検索結果が見つかりませんでした。")
+                
+        elif formula_type:
+            # タイプ別取得
+            formulas = get_formulas_by_type(formula_type)
+            if formulas:
+                embed = discord.Embed(
+                    title=f"数式タイプ: {formula_type}",
+                    color=discord.Color.purple()
+                )
+                
+                for i, formula in enumerate(formulas[:5]):  # 最大5件まで表示
+                    embed.add_field(
+                        name=f"{formula.get('id', 'N/A')} - {formula.get('title', 'N/A')}",
+                        value=f"数式: `{formula.get('formula', 'N/A')[:50]}...`" if len(formula.get('formula', '')) > 50 else f"数式: `{formula.get('formula', 'N/A')}`",
+                        inline=False
+                    )
+                
+                if len(formulas) > 5:
+                    embed.set_footer(text=f"他に{len(formulas) - 5}件の結果があります。")
+                
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send(f"タイプ '{formula_type}' の数式データが見つかりませんでした。")
+        else:
+            # パラメータが何も指定されていない場合は使用方法を表示
+            embed = discord.Embed(
+                title="数式コマンドの使用方法",
+                color=discord.Color.gold()
+            )
+            embed.add_field(
+                name="使用例",
+                value=(
+                    "`/formula formula_id:001` - ID指定で取得\n"
+                    "`/formula formula_type:circle` - タイプ別で取得\n"
+                    "`/formula search:heart` - 検索\n"
+                    "`/formula random:True` - ランダム取得"
+                ),
+                inline=False
+            )
+            
+            # 利用可能なタイプを表示
+            types = get_available_formula_types()
+            if types:
+                embed.add_field(
+                    name="利用可能なタイプ",
+                    value=", ".join(types[:10]) + ("..." if len(types) > 10 else ""),
+                    inline=False
+                )
+            
+            await interaction.followup.send(embed=embed)
+            
+    except Exception as e:
+        if interaction.response.is_done():
+            await interaction.followup.send(f"エラーが発生しました: {str(e)}")
+        else:
+            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@app_commands.default_permissions(administrator=True)
+@bot.tree.command(name="formula_list", description="管理者限定：数式データ一覧を表示")
+async def formula_list_command(interaction: discord.Interaction):
+    """管理者限定：数式データ一覧を表示"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    try:
+        await interaction.response.defer(ephemeral=True)
+        
+        formulas = get_all_formulas()
+        if formulas:
+            embed = discord.Embed(
+                title="数式データ一覧",
+                color=discord.Color.blue()
+            )
+            
+            for i, formula in enumerate(formulas[:10]):  # 最大10件まで表示
+                embed.add_field(
+                    name=f"{formula.get('id', 'N/A')} - {formula.get('title', 'N/A')}",
+                    value=f"タイプ: {formula.get('formula_type', 'N/A')}\n数式: `{formula.get('formula', 'N/A')[:30]}...`" if len(formula.get('formula', '')) > 30 else f"タイプ: {formula.get('formula_type', 'N/A')}\n数式: `{formula.get('formula', 'N/A')}`",
+                    inline=False
+                )
+            
+            if len(formulas) > 10:
+                embed.set_footer(text=f"他に{len(formulas) - 10}件のデータがあります。総数: {len(formulas)}件")
+            else:
+                embed.set_footer(text=f"総数: {len(formulas)}件")
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send("数式データが登録されていません。", ephemeral=True)
+            
+    except Exception as e:
+        if interaction.response.is_done():
+            await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@app_commands.default_permissions(administrator=True)
+@bot.tree.command(name="daily_notification_test", description="管理者限定：毎日通知機能のテスト")
+@app_commands.describe(
+    test_date="テストする日付（YYYY-MM-DD形式、省略時は今日）"
+)
+async def daily_notification_test_command(
+    interaction: discord.Interaction,
+    test_date: str = None
+):
+    """管理者限定：毎日通知機能のテスト"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    global daily_notifier
+    
+    try:
+        await interaction.response.defer(ephemeral=True)
+        
+        if not daily_notifier:
+            await interaction.followup.send("❌ 毎日通知機能が初期化されていません。DAILY_NOTIFICATION_CHANNEL_ID環境変数を確認してください。", ephemeral=True)
+            return
+        
+        # 手動で指定日または今日の数式をチェック
+        count = await daily_notifier.manual_check(interaction.channel, test_date)
+        
+        if test_date:
+            if count > 0:
+                await interaction.followup.send(f"✅ テスト完了: {test_date}に{count}件の数式を発見し、通知しました。", ephemeral=True)
+            else:
+                await interaction.followup.send(f"✅ テスト完了: {test_date}に登録された数式はありませんでした。", ephemeral=True)
+        else:
+            if count > 0:
+                await interaction.followup.send(f"✅ テスト完了: 今日{count}件の新着数式を通知しました。", ephemeral=True)
+            else:
+                await interaction.followup.send("✅ テスト完了: 今日登録された新しい数式はありませんでした。", ephemeral=True)
+            
+    except Exception as e:
+        if interaction.response.is_done():
+            await interaction.followup.send(f"❌ エラーが発生しました: {str(e)}", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"❌ エラーが発生しました: {str(e)}", ephemeral=True)
+
+@app_commands.default_permissions(administrator=True)
+@bot.tree.command(name="daily_notification_status", description="管理者限定：毎日通知機能の状態確認")
+async def daily_notification_status_command(interaction: discord.Interaction):
+    """管理者限定：毎日通知機能の状態確認"""
+    
+    # 管理者チェック
+    if not is_admin(interaction):
+        await interaction.response.send_message("このコマンドを使用する権限がありません。", ephemeral=True)
+        return
+    
+    global daily_notifier
+    
+    try:
+        embed = discord.Embed(
+            title="📊 毎日通知機能の状態",
+            color=discord.Color.blue()
+        )
+        
+        # 環境変数の確認
+        notification_channel_id = os.getenv('DAILY_NOTIFICATION_CHANNEL_ID')
+        if notification_channel_id:
+            try:
+                channel_id = int(notification_channel_id)
+                channel = bot.get_channel(channel_id)
+                channel_name = channel.name if channel else "チャンネルが見つかりません"
+                embed.add_field(
+                    name="🔧 設定",
+                    value=f"**通知チャンネル:** {channel_name} (`{channel_id}`)",
+                    inline=False
+                )
+            except ValueError:
+                embed.add_field(
+                    name="❌ 設定エラー",
+                    value="DAILY_NOTIFICATION_CHANNEL_IDが無効な値です",
+                    inline=False
+                )
+        else:
+            embed.add_field(
+                name="❌ 設定エラー",
+                value="DAILY_NOTIFICATION_CHANNEL_ID環境変数が設定されていません",
+                inline=False
+            )
+        
+        # 通知機能の状態
+        if daily_notifier:
+            status = "🟢 実行中" if daily_notifier.is_running else "🔴 停止中"
+            embed.add_field(
+                name="📡 通知機能",
+                value=f"**状態:** {status}",
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="📡 通知機能",
+                value="**状態:** ❌ 初期化されていません",
+                inline=False
+            )
+        
+        # 使用方法
+        embed.add_field(
+            name="💡 使用方法",
+            value=(
+                "`/daily_notification_test` - 今日の数式をテスト\n"
+                "`/daily_notification_test test_date:2025-03-06` - 指定日をテスト\n"
+                "毎日0時に自動で新着数式を通知します"
+            ),
+            inline=False
+        )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await interaction.response.send_message(f"❌ エラーが発生しました: {str(e)}", ephemeral=True)
 
 
 # Botの実行

@@ -1,8 +1,8 @@
-# 🤖 MarhGraphArt Discord Bot
+# MarhGraphArt Discord Bot
 
 汎用的なDiscord Bot - メッセージ送信とEmbed機能を持つ多機能Bot
 
-## 📋 機能
+## 機能
 
 ### 基本コマンド
 - `/admin_message` - 管理者限定のメッセージ送信
@@ -27,7 +27,7 @@
 - **ロール制限**: 指定されたロールを持つユーザーのみが管理者コマンドを使用可能
 - **チャンネル指定**: 管理者は任意のチャンネルにメッセージを送信可能
 
-## 🚀 セットアップ
+## セットアップ
 
 ### 前提条件
 - Python 3.8以上
@@ -67,7 +67,7 @@ WELCOME_CHANNEL_ID=1234567890123456789
 python bot.py
 ```
 
-## 🛠️ Discord Bot セットアップ
+## Discord Bot セットアップ
 
 ### 1. Discord Developer Portal での設定
 
@@ -91,7 +91,7 @@ OAuth2セクションで以下のスコープを選択：
 - `bot`
 - `applications.commands`
 
-## 🌐 Railway デプロイ
+## Railway デプロイ
 
 ### 1. Railway プロジェクトの作成
 
@@ -114,7 +114,7 @@ WELCOME_CHANNEL_ID=1234567890123456789
 
 GitHubにプッシュすると自動的にデプロイされます。
 
-## 📖 コマンド詳細
+## コマンド詳細
 
 ### `/message`
 基本的なメッセージ送信コマンド
@@ -147,7 +147,7 @@ GitHubにプッシュすると自動的にデプロイされます。
 /admin_message content:緊急連絡 channel:#general embed_title:緊急 embed_color:#FF0000
 ```
 
-## 🔧 カスタマイズ
+## カスタマイズ
 
 ### 管理者権限の設定方法
 
@@ -171,7 +171,7 @@ async def custom_command(interaction: discord.Interaction):
     await interaction.response.send_message("カスタムレスポンス")
 ```
 
-## 📝 ファイル構成
+## ファイル構成
 
 ```
 MarhGraphArtDiscord-bot/
@@ -183,7 +183,7 @@ MarhGraphArtDiscord-bot/
 └── README.md         # このファイル
 ```
 
-## 🐛 トラブルシューティング
+## トラブルシューティング
 
 ### よくある問題
 
@@ -199,21 +199,3 @@ MarhGraphArtDiscord-bot/
 3. **管理者コマンドが使えない**
    - `ADMIN_USER_IDS` または `ADMIN_ROLES` が正しく設定されているか確認
    - ユーザーIDが正しいか確認（開発者モードで確認可能）
-
-## 🤝 コントリビューション
-
-1. このリポジトリをフォーク
-2. 機能ブランチを作成 (`git checkout -b feature/AmazingFeature`)
-3. 変更をコミット (`git commit -m 'Add some AmazingFeature'`)
-4. ブランチにプッシュ (`git push origin feature/AmazingFeature`)
-5. プルリクエストを作成
-
-##  サポート
-
-問題や質問がある場合は、GitHubのIssueを作成してください。
-
----
-
-**作成者**: TETH-Main  
-**バージョン**: 1.0.0  
-**最終更新**: 2025年7月
