@@ -60,47 +60,53 @@ class MyBot(commands.Bot):
                     description="今日はまだ新しい数式が登録されていません。",
                     color=0x888888
                 )
-                embed.set_footer(text="Math Graph Art - Daily Report")
+                embed.set_footer(text="Graph + Library = Graphary")
                 await channel.send(embed=embed)
                 return
             
-            # 数式が登録されている場合
-            embed = discord.Embed(
-                title=f"今日の数式登録 ({len(today_formulas)}件)",
-                description="本日新たに登録された数式をお知らせします。",
-                color=0x00FF7F
-            )
-            
-            # 最大5件まで表示
-            for i, formula_data in enumerate(today_formulas[:5]):
+            # 数式が登録されている場合 - 各数式を個別のEmbedで送信
+            for i, formula_data in enumerate(today_formulas):
                 formatted_data = firebase_client.format_formula_for_discord(formula_data)
                 
-                field_value = f"**数式:** {formatted_data['formula'][:100]}{'...' if len(formatted_data['formula']) > 100 else ''}\n"
-                field_value += f"**タイプ:** {formatted_data['formula_type']}\n"
-                field_value += f"**タグ:** {formatted_data['tags']}\n"
-                field_value += f"**登録時刻:** {formatted_data['timestamp']}"
+                # 個別のEmbedを作成
+                embed = discord.Embed(
+                    title=formatted_data['title'],
+                    description=f"```\n{formatted_data['formula']}\n```",
+                    color=0x00FF7F,
+                    url=f"https://teth-main.github.io/Graphary/?formulaId={formatted_data['id']}"
+                )
                 
-                embed.add_field(
-                    name=f"{i+1}. {formatted_data['title']}",
-                    value=field_value,
-                    inline=False
-                )
+                # 数式タイプを追加
+                if formatted_data['formula_type']:
+                    type_list = "\n".join([f"`{t}`" for t in formatted_data['formula_type'].split(', ')])
+                    embed.add_field(
+                        name="数式タイプ",
+                        value=type_list,
+                        inline=True
+                    )
+                
+                # タグを追加
+                if formatted_data['tags'] and formatted_data['tags'] != 'なし':
+                    tag_list = "\n".join([f"`{t}`" for t in formatted_data['tags'].split(', ')])
+                    embed.add_field(
+                        name="タグ",
+                        value=tag_list,
+                        inline=True
+                    )
+                
+                # 画像を設定（必ずあるので大きく表示）
+                if formatted_data['image_url']:
+                    embed.set_image(url=formatted_data['image_url'])
+                
+                embed.set_footer(text="Graph + Library = Graphary")
+                
+                await channel.send(embed=embed)
+                
+                # 連続送信の間隔を少し空ける
+                if i < len(today_formulas) - 1:
+                    import asyncio
+                    await asyncio.sleep(1)
             
-            if len(today_formulas) > 5:
-                embed.add_field(
-                    name="その他",
-                    value=f"他に{len(today_formulas) - 5}件の数式が登録されています。",
-                    inline=False
-                )
-            
-            embed.set_footer(text="Math Graph Art - Daily Report")
-            embed.timestamp = discord.utils.utcnow()
-            
-            # 画像があれば最初の数式の画像を設定
-            if today_formulas and today_formulas[0].get('image_url'):
-                embed.set_image(url=today_formulas[0]['image_url'])
-            
-            await channel.send(embed=embed)
             print(f"今日の数式通知を送信しました: {len(today_formulas)}件")
             
         except Exception as e:
@@ -785,48 +791,54 @@ async def send_formula_notification_command(interaction: discord.Interaction):
                 description="今日はまだ新しい数式が登録されていません。",
                 color=0x888888
             )
-            embed.set_footer(text="Math Graph Art - Manual Report")
+            embed.set_footer(text="Graph + Library = Graphary")
             await interaction.channel.send(embed=embed)
             await interaction.followup.send("通知を送信しました（今日の登録なし）", ephemeral=True)
             return
         
-        # 数式が登録されている場合
-        embed = discord.Embed(
-            title=f"今日の数式登録 ({len(today_formulas)}件)",
-            description="本日新たに登録された数式をお知らせします。",
-            color=0x00FF7F
-        )
-        
-        # 最大5件まで表示
-        for i, formula_data in enumerate(today_formulas[:5]):
+        # 数式が登録されている場合 - 各数式を個別のEmbedで送信
+        for i, formula_data in enumerate(today_formulas):
             formatted_data = firebase_client.format_formula_for_discord(formula_data)
             
-            field_value = f"**数式:** {formatted_data['formula'][:100]}{'...' if len(formatted_data['formula']) > 100 else ''}\n"
-            field_value += f"**タイプ:** {formatted_data['formula_type']}\n"
-            field_value += f"**タグ:** {formatted_data['tags']}\n"
-            field_value += f"**登録時刻:** {formatted_data['timestamp']}"
+            # 個別のEmbedを作成
+            embed = discord.Embed(
+                title=formatted_data['title'],
+                description=f"```\n{formatted_data['formula']}\n```",
+                color=0x00FF7F,
+                url=f"https://teth-main.github.io/Graphary/?formulaId={formatted_data['id']}"
+            )
             
-            embed.add_field(
-                name=f"{i+1}. {formatted_data['title']}",
-                value=field_value,
-                inline=False
-            )
+            # 数式タイプを追加
+            if formatted_data['formula_type']:
+                type_list = "\n".join([f"`{t}`" for t in formatted_data['formula_type'].split(', ')])
+                embed.add_field(
+                    name="数式タイプ",
+                    value=type_list,
+                    inline=True
+                )
+            
+            # タグを追加
+            if formatted_data['tags'] and formatted_data['tags'] != 'なし':
+                tag_list = "\n".join([f"`{t}`" for t in formatted_data['tags'].split(', ')])
+                embed.add_field(
+                    name="タグ",
+                    value=tag_list,
+                    inline=True
+                )
+            
+            # 画像を設定（必ずあるので大きく表示）
+            if formatted_data['image_url']:
+                embed.set_image(url=formatted_data['image_url'])
+            
+            embed.set_footer(text="Graph + Library = Graphary")
+            
+            await interaction.channel.send(embed=embed)
+            
+            # 連続送信の間隔を少し空ける
+            if i < len(today_formulas) - 1:
+                import asyncio
+                await asyncio.sleep(1)
         
-        if len(today_formulas) > 5:
-            embed.add_field(
-                name="その他",
-                value=f"他に{len(today_formulas) - 5}件の数式が登録されています。",
-                inline=False
-            )
-        
-        embed.set_footer(text="Math Graph Art - Manual Report")
-        embed.timestamp = discord.utils.utcnow()
-        
-        # 画像があれば最初の数式の画像を設定
-        if today_formulas and today_formulas[0].get('image_url'):
-            embed.set_image(url=today_formulas[0]['image_url'])
-        
-        await interaction.channel.send(embed=embed)
         await interaction.followup.send(f"今日の数式通知を送信しました: {len(today_formulas)}件", ephemeral=True)
         
     except Exception as e:
@@ -881,39 +893,33 @@ async def test_formula_embed_command(interaction: discord.Interaction):
         
         # テスト用Embedを作成（実際の通知と同じスタイル）
         embed = discord.Embed(
-            title=f"数式通知テスト ({len(sample_formulas)}件)",
-            description="これは数式通知のEmbedスタイルのテスト表示です。",
-            color=0x00FF7F
+            title="サンプル数式1：美しい螺旋",
+            description="```\nr = a * theta^2 + b * sin(c * theta)\n```",
+            color=0x00FF7F,
+            url="https://teth-main.github.io/Graphary/?formulaId=test001"
         )
         
-        # サンプル数式を表示
-        for i, formula_data in enumerate(sample_formulas):
-            field_value = f"**数式:** {formula_data['formula'][:100]}{'...' if len(formula_data['formula']) > 100 else ''}\n"
-            field_value += f"**タイプ:** {', '.join(formula_data['formula_type'])}\n"
-            field_value += f"**タグ:** {', '.join(formula_data['tags'])}\n"
-            field_value += f"**登録時刻:** {formula_data['timestamp']}"
-            
-            embed.add_field(
-                name=f"{i+1}. {formula_data['title']}",
-                value=field_value,
-                inline=False
-            )
-        
+        # 数式タイプを追加
         embed.add_field(
-            name="📝 注意",
-            value="これはテスト表示です。実際のデータではありません。",
-            inline=False
+            name="数式タイプ",
+            value="`極座標`\n`螺旋`",
+            inline=True
         )
         
-        embed.set_footer(text="Math Graph Art - Test Display")
-        embed.timestamp = discord.utils.utcnow()
+        # タグを追加
+        embed.add_field(
+            name="タグ",
+            value="`美しい`\n`螺旋`\n`数学アート`",
+            inline=True
+        )
         
-        # 最初のサンプル画像を設定
-        if sample_formulas and sample_formulas[0].get('image_url'):
-            embed.set_image(url=sample_formulas[0]['image_url'])
+        # 画像を設定（大きく表示）
+        embed.set_image(url="https://via.placeholder.com/600x400/FF6B6B/FFFFFF?text=Sample+Formula+1")
+        
+        embed.set_footer(text="Graph + Library = Graphary")
         
         await interaction.channel.send(embed=embed)
-        await interaction.followup.send("テスト用のEmbed表示を送信しました。", ephemeral=True)
+        await interaction.followup.send("テスト用のEmbed表示を送信しました（新スタイル）。", ephemeral=True)
         
     except Exception as e:
         await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
