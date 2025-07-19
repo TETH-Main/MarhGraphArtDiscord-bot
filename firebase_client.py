@@ -96,6 +96,75 @@ class FirebaseClient:
             print(f"ランダム数式取得エラー: {e}")
             return None
     
+    def get_all_tags(self):
+        """
+        全てのタグリストを取得
+        
+        Returns:
+            list: タグ情報のリスト [{'tagID': 1, 'tagName': 'タグ名'}, ...]
+        """
+        try:
+            tags_ref = self.db.collection('tagsList')
+            query = tags_ref.order_by('tagID')
+            
+            tags = []
+            for doc in query.stream():
+                data = doc.to_dict()
+                if 'tagID' in data and 'tagName' in data:
+                    tags.append({
+                        'tagID': data['tagID'],
+                        'tagName': data['tagName']
+                    })
+            
+            return tags
+            
+        except Exception as e:
+            print(f"タグリスト取得エラー: {e}")
+            return []
+    
+    def register_formula_via_gas(self, formula_data):
+        """
+        Google Apps Script経由で数式を登録
+        
+        Args:
+            formula_data (dict): 数式データ
+            
+        Returns:
+            dict: 登録結果
+        """
+        try:
+            import requests
+            
+            # GAS WebアプリのURL（環境変数から取得）
+            gas_url = os.getenv('GAS_WEBAPP_URL')
+            if not gas_url:
+                raise ValueError("GAS_WEBAPP_URL環境変数が設定されていません")
+            
+            # POSTデータを準備
+            post_data = {
+                'type': 'formula',
+                'title': formula_data.get('title', ''),
+                'title_EN': formula_data.get('title_EN', ''),
+                'formula': formula_data.get('formula', ''),
+                'formula_type': formula_data.get('formula_type', ''),  # "関数, 陰関数" 形式
+                'tags': formula_data.get('tags', ''),  # "1, 12, 25" 形式
+                'image_url': formula_data.get('image_url', '')
+            }
+            
+            # GASにPOSTリクエストを送信
+            response = requests.post(gas_url, json=post_data)
+            response.raise_for_status()
+            
+            result = response.json()
+            if result.get('success'):
+                return result.get('result', {})
+            else:
+                raise Exception(f"GAS登録エラー: {result.get('error', '不明なエラー')}")
+                
+        except Exception as e:
+            print(f"GAS経由での数式登録エラー: {e}")
+            raise e
+    
     def get_tag_name(self, tag_id):
         """
         タグIDからタグ名を取得
