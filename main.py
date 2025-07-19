@@ -1222,31 +1222,62 @@ class FormulaTypeSelectView(discord.ui.View):
                 await interaction.response.send_message("❌ タグデータの取得に失敗しました。", ephemeral=True)
                 return
             
+            # タグ一覧表示ビューを作成
+            view = TagListView(self.formula_data, tags_data)
+            await view.show_tag_list(interaction)
+            
+        except Exception as e:
+            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+class TagListView(discord.ui.View):
+    def __init__(self, formula_data, tags_data):
+        super().__init__(timeout=300)
+        self.formula_data = formula_data
+        self.tags_data = tags_data
+    
+    async def show_tag_list(self, interaction: discord.Interaction):
+        try:
             # タグリストを番号付きで表示
             tag_list_text = "利用可能なタグ一覧：\n"
-            for i, tag in enumerate(tags_data, 1):
+            for i, tag in enumerate(self.tags_data, 1):
                 tag_name = tag.get('tagName', f"Tag {i}")
                 tag_list_text += f"`{i}. {tag_name}` "
                 if i % 6 == 0:  # 6個ごとに改行
                     tag_list_text += "\n"
             
             embed = discord.Embed(
-                title="タグを選択",
+                title="タグ一覧",
                 description=tag_list_text,
                 color=0x00FF7F
             )
             embed.add_field(
-                name="使用方法",
-                value="• 番号をカンマ区切りで入力: 例 `1, 3, 10`\n• タグなしの場合は「なし」と入力",
+                name="📝 使用方法",
+                value="下のボタンを押してタグを選択してください\n• 番号をカンマ区切りで入力: 例 `1, 3, 10`\n• タグなしの場合は「なし」と入力",
                 inline=False
             )
             
-            # モーダルを表示してタグ入力を受け取る
-            modal = TagSelectionModal(self.formula_data, tags_data)
-            await interaction.response.send_modal(modal)
+            # タグ選択ボタンを追加
+            self.add_item(TagSelectButton(self.formula_data, self.tags_data))
+            
+            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
             
         except Exception as e:
             await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+class TagSelectButton(discord.ui.Button):
+    def __init__(self, formula_data, tags_data):
+        super().__init__(label="タグを選択する", style=discord.ButtonStyle.primary, emoji="🏷️")
+        self.formula_data = formula_data
+        self.tags_data = tags_data
+    
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            # タグ選択モーダルを表示
+            modal = TagSelectionModal(self.formula_data, self.tags_data)
+            await interaction.response.send_modal(modal)
+            
+        except Exception as e:
+            await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
 class TagSelectionModal(discord.ui.Modal, title="タグ選択"):
     def __init__(self, formula_data, tags_data):
