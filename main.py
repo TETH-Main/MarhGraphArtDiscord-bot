@@ -296,8 +296,8 @@ async def ping_command(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)
     await interaction.response.send_message(f"🏓 Pong! レイテンシ: {latency}ms")
 
-@bot.tree.command(name="random_formula", description="Grapharyからランダムに数式を1つ表示します")
-async def random_formula_command(interaction: discord.Interaction):
+@bot.tree.command(name="random_graphary", description="Grapharyからランダムに数式を1つ表示します")
+async def random_graphary_command(interaction: discord.Interaction):
     """誰でも使える：ランダムな数式を表示"""
     try:
         await interaction.response.defer()
@@ -358,8 +358,8 @@ async def random_formula_command(interaction: discord.Interaction):
         await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
 @app_commands.default_permissions(administrator=True)
-@bot.tree.command(name="register_formula", description="管理者限定：Grapharyに新しい数式を登録します")
-async def register_formula_command(interaction: discord.Interaction):
+@bot.tree.command(name="register_graphary", description="管理者限定：Grapharyに新しい数式を登録します")
+async def register_graphary_command(interaction: discord.Interaction):
     """管理者限定：数式登録"""
     # 管理者チェック
     if not is_admin(interaction):
@@ -624,7 +624,14 @@ class ConfirmRegistrationView(discord.ui.View):
             
             # Firebase経由でGASに登録
             firebase_client = FirebaseClient()
-            result = firebase_client.register_formula_via_gas(self.formula_data)
+            
+            # newTagsフィールドを追加（現在は空だが、将来的に新規タグ機能を追加可能）
+            registration_data = {
+                **self.formula_data,
+                'newTags': ''  # 現在は新規タグなし、将来的に機能追加可能
+            }
+            
+            result = firebase_client.register_formula_via_gas(registration_data)
             
             # 登録完了通知
             embed = discord.Embed(
