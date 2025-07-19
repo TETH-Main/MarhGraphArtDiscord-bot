@@ -624,14 +624,7 @@ class ConfirmRegistrationView(discord.ui.View):
             
             # Firebase経由でGASに登録
             firebase_client = FirebaseClient()
-            
-            # newTagsフィールドを追加（現在は空だが、将来的に新規タグ機能を追加可能）
-            registration_data = {
-                **self.formula_data,
-                'newTags': ''  # 現在は新規タグなし、将来的に機能追加可能
-            }
-            
-            result = firebase_client.register_formula_via_gas(registration_data)
+            result = firebase_client.register_formula_via_gas(self.formula_data)
             
             # 登録完了通知
             embed = discord.Embed(

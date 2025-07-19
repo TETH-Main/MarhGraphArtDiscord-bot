@@ -140,42 +140,27 @@ class FirebaseClient:
             if not gas_url:
                 raise ValueError("GAS_WEBAPP_URL環境変数が設定されていません")
             
-            # POSTデータを準備（registerManager.jsと同じ形式）
+            # POSTデータを準備
             post_data = {
+                'type': 'formula',  # GASが期待するタイプ
                 'title': formula_data.get('title', ''),
                 'title_EN': formula_data.get('title_EN', ''),
                 'formula': formula_data.get('formula', ''),
                 'formula_type': formula_data.get('formula_type', ''),  # "関数, 陰関数" 形式
-                'tags': formula_data.get('tags', ''),  # "1, 12, 25" 形式（既存タグのID）
-                'newTags': formula_data.get('newTags', ''),  # 新規タグ名（カンマ区切り）
+                'tags': formula_data.get('tags', ''),  # "1, 12, 25" 形式
                 'image_url': formula_data.get('image_url', ''),
-                'type': 'formula'  # データタイプを指定
+                'newTags': ''  # 新しいタグなし
             }
             
-            # GASにPOSTリクエストを送信（registerManager.jsと同じ方式）
-            headers = {
-                'Content-Type': 'application/json'
-            }
-            
-            response = requests.post(
-                gas_url, 
-                json=post_data,  # JSONとして送信
-                headers=headers,
-                timeout=30  # タイムアウト設定
-            )
-            
-            # ステータスコードをチェック
+            # GASにPOSTリクエストを送信
+            response = requests.post(gas_url, json=post_data)
             response.raise_for_status()
             
-            # レスポンスをJSON形式で解析
-            try:
-                result = response.json()
-                return result  # GASからのレスポンスをそのまま返す
-            except ValueError as e:
-                # JSONパースに失敗した場合
-                print(f"JSON parse error: {e}")
-                print(f"Response text: {response.text}")
-                return {"success": True, "message": "Registration completed"}  # 成功と仮定
+            result = response.json()
+            if result.get('success'):
+                return result.get('result', {})
+            else:
+                raise Exception(f"GAS登録エラー: {result.get('error', '不明なエラー')}")
                 
         except Exception as e:
             print(f"GAS経由での数式登録エラー: {e}")
