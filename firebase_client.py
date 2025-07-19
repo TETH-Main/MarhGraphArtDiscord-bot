@@ -96,80 +96,82 @@ class FirebaseClient:
             print(f"ランダム数式取得エラー: {e}")
             return None
     
-    def get_all_tags(self):
+    def get_tags_from_gas(self):
         """
-        全てのタグリストを取得
+        GAS経由でタグリストを取得
         
         Returns:
-            list: タグ情報のリスト [{'tagID': 1, 'tagName': 'タグ名'}, ...]
-        """
-        try:
-            tags_ref = self.db.collection('tagsList')
-            query = tags_ref.order_by('tagID')
-            
-            tags = []
-            for doc in query.stream():
-                data = doc.to_dict()
-                if 'tagID' in data and 'tagName' in data:
-                    tags.append({
-                        'tagID': data['tagID'],
-                        'tagName': data['tagName']
-                    })
-            
-            return tags
-            
-        except Exception as e:
-            print(f"タグリスト取得エラー: {e}")
-            return []
-    
-    def register_formula_via_gas(self, formula_data):
-        """
-        Google Apps Script経由で数式を登録
-        
-        Args:
-            formula_data (dict): 数式データ
-            
-        Returns:
-            dict: 登録結果
+            list: タグデータのリスト [{'tagID': id, 'tagName': name, 'tagName_EN': name_en}, ...]
         """
         try:
             import requests
-            
-            # GAS WebアプリのURL（環境変数から取得）
             gas_url = os.getenv('GAS_WEBAPP_URL')
             if not gas_url:
                 raise ValueError("GAS_WEBAPP_URL環境変数が設定されていません")
             
-            # POSTデータを準備
-            post_data = {
-                'type': 'formula',  # GASが期待するタイプ
-                'title': formula_data.get('title', ''),
-                'title_EN': formula_data.get('title_EN', ''),
-                'formula': formula_data.get('formula', ''),
-                'formula_type': formula_data.get('formula_type', ''),  # "関数, 陰関数" 形式
-                'tags': formula_data.get('tags', ''),  # "1, 12, 25" 形式
-                'image_url': formula_data.get('image_url', ''),
-                'newTags': ''  # 新しいタグなし
-            }
+            # GASからtagsListシートのデータを取得
+            response = requests.get(
+                gas_url,
+                params={
+                    'id': '139qGcw2VXJRZF_zBLJ-wL-Lh8--hHZEFd0I1YYVsnqM',
+                    'name': 'tagsList'
+                },
+                timeout=10
+            )
             
-            # デバッグ用：送信データをログ出力
-            print(f"GASに送信するデータ: {post_data}")
-            
-            # GASにPOSTリクエストを送信
-            response = requests.post(gas_url, json=post_data)
-            response.raise_for_status()
-            
-            # レスポンスをログ出力
-            print(f"GASからのレスポンス: {response.text}")
-            
-            result = response.json()
-            if result.get('success'):
-                return result.get('result', {})
+            if response.status_code == 200:
+                tags_data = response.json()
+                if isinstance(tags_data, list):
+                    return tags_data
+                else:
+                    print(f"予期しないレスポンス形式: {tags_data}")
+                    return []
             else:
-                raise Exception(f"GAS登録エラー: {result.get('error', '不明なエラー')}")
+                print(f"GASからのタグ取得エラー: HTTP {response.status_code}")
+                return []
                 
         except Exception as e:
-            print(f"GAS経由での数式登録エラー: {e}")
+            print(f"GASタグ取得エラー: {e}")
+            return []
+    
+    def send_to_gas(self, data, data_type='formula'):
+        """
+        GAS経由でデータを送信
+        
+        Args:
+            data (dict): 送信するデータ
+            data_type (str): データタイプ ('formula' or 'report')
+            
+        Returns:
+            dict: GASからのレスポンス
+        """
+        try:
+            import requests
+            gas_url = os.getenv('GAS_WEBAPP_URL')
+            if not gas_url:
+                raise ValueError("GAS_WEBAPP_URL環境変数が設定されていません")
+            
+            # データにtypeを追加
+            payload = {**data, 'type': data_type}
+            
+            response = requests.post(
+                gas_url,
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    return result
+                else:
+                    raise Exception(f"GAS処理エラー: {result.get('error', '不明なエラー')}")
+            else:
+                raise Exception(f"HTTP {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            print(f"GAS送信エラー: {e}")
             raise e
     
     def get_tag_name(self, tag_id):
