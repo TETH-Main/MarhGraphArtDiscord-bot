@@ -142,13 +142,13 @@ class FirebaseClient:
             
             # POSTデータを準備
             post_data = {
-                'type': 'formula',
                 'title': formula_data.get('title', ''),
                 'title_EN': formula_data.get('title_EN', ''),
                 'formula': formula_data.get('formula', ''),
                 'formula_type': formula_data.get('formula_type', ''),  # "関数, 陰関数" 形式
                 'tags': formula_data.get('tags', ''),  # "1, 12, 25" 形式
-                'image_url': formula_data.get('image_url', '')
+                'image_url': formula_data.get('image_url', ''),
+                'newTags': ''  # 新しいタグなし
             }
             
             # GASにPOSTリクエストを送信
