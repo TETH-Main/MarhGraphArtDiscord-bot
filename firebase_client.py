@@ -152,9 +152,15 @@ class FirebaseClient:
                 'newTags': ''  # 新しいタグなし
             }
             
+            # デバッグ用：送信データをログ出力
+            print(f"GASに送信するデータ: {post_data}")
+            
             # GASにPOSTリクエストを送信
             response = requests.post(gas_url, json=post_data)
             response.raise_for_status()
+            
+            # レスポンスをログ出力
+            print(f"GASからのレスポンス: {response.text}")
             
             result = response.json()
             if result.get('success'):
