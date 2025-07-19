@@ -386,7 +386,7 @@ class FormulaRegistrationModal(discord.ui.Modal):
         
         # 英語タイトル（オプション）
         self.title_en_input = discord.ui.TextInput(
-            label="英語タイトル（オプション）/ English Title (Optional)",
+            label="英語タイトル / English Title",
             placeholder="English title (optional)",
             required=False,
             max_length=100
@@ -465,7 +465,7 @@ class FormulaTypeSelect(discord.ui.Select):
         ]
         
         super().__init__(
-            placeholder="数式タイプを選択してください... / Select formula types...",
+            placeholder="数式タイプを選択 / Select formula types",
             min_values=1,
             max_values=len(options),
             options=options
@@ -562,10 +562,11 @@ class TagInputModal(discord.ui.Modal):
                 color=0x00FF7F
             )
             
-            embed.add_field(name="タイトル / Title", value=self.form_data['title'], inline=False)
+            embed.add_field(name="タイトル / Title", value=self.form_data['title'][:250] + ("..." if len(self.form_data['title']) > 250 else ""), inline=False)
             
             if self.form_data['title_EN']:
-                embed.add_field(name="英語タイトル / English Title", value=self.form_data['title_EN'], inline=False)
+                title_en_display = self.form_data['title_EN'][:250] + ("..." if len(self.form_data['title_EN']) > 250 else "")
+                embed.add_field(name="英語タイトル / English Title", value=title_en_display, inline=False)
             else:
                 embed.add_field(name="英語タイトル / English Title", value="なし / None", inline=False)
             
