@@ -6,6 +6,7 @@ import logging
 from datetime import time, timezone, timedelta
 from messages_gspread import get_message, get_all_messages
 from firebase_client import FirebaseClient
+from gas_client import GASClient
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -356,6 +357,296 @@ async def random_formula_command(interaction: discord.Interaction):
         
     except Exception as e:
         await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="register_formula", description="Grapharyに新しい数式を登録します")
+async def register_formula_command(interaction: discord.Interaction):
+    """誰でも使える：数式登録コマンド"""
+    try:
+        # 数式登録モーダルを表示
+        modal = FormulaRegistrationModal()
+        await interaction.response.send_modal(modal)
+        
+    except Exception as e:
+        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+class FormulaRegistrationModal(discord.ui.Modal):
+    """数式登録モーダル"""
+    
+    def __init__(self):
+        super().__init__(title="数式登録 - 基本情報入力")
+        
+        # タイトル（必須）
+        self.title_input = discord.ui.TextInput(
+            label="タイトル",
+            placeholder="数式のタイトルを入力してください",
+            required=True,
+            max_length=100
+        )
+        self.add_item(self.title_input)
+        
+        # 英語タイトル（オプション）
+        self.title_en_input = discord.ui.TextInput(
+            label="英語タイトル（オプション）",
+            placeholder="English title (optional)",
+            required=False,
+            max_length=100
+        )
+        self.add_item(self.title_en_input)
+        
+        # 数式（必須）
+        self.formula_input = discord.ui.TextInput(
+            label="数式",
+            placeholder="LaTeX形式で数式を入力してください（例: x^2 + y^2 = 1）",
+            required=True,
+            style=discord.TextStyle.paragraph,
+            max_length=1000
+        )
+        self.add_item(self.formula_input)
+        
+        # 画像URL（必須）
+        self.image_url_input = discord.ui.TextInput(
+            label="画像URL",
+            placeholder="https://i.imgur.com/example.png",
+            required=True,
+            max_length=500
+        )
+        self.add_item(self.image_url_input)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        """モーダル送信時の処理"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # 入力データを保存
+            self.form_data = {
+                'title': self.title_input.value.strip(),
+                'title_EN': self.title_en_input.value.strip(),
+                'formula': self.formula_input.value.strip(),
+                'image_url': self.image_url_input.value.strip()
+            }
+            
+            # 数式タイプ選択メニューを表示
+            view = FormulaTypeSelectView(self.form_data)
+            embed = discord.Embed(
+                title="数式タイプ選択",
+                description="数式のタイプを選択してください（複数選択可能）：",
+                color=0x00FF7F
+            )
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+class FormulaTypeSelectView(discord.ui.View):
+    """数式タイプ選択ビュー"""
+    
+    def __init__(self, form_data):
+        super().__init__(timeout=300)
+        self.form_data = form_data
+        
+        # 数式タイプ選択メニュー
+        self.type_select = FormulaTypeSelect(form_data)
+        self.add_item(self.type_select)
+
+class FormulaTypeSelect(discord.ui.Select):
+    """数式タイプ選択メニュー"""
+    
+    def __init__(self, form_data):
+        self.form_data = form_data
+        
+        # 選択肢を定義
+        options = [
+            discord.SelectOption(label="関数", value="関数", description="一般的な関数"),
+            discord.SelectOption(label="陰関数", value="陰関数", description="陰関数形式"),
+            discord.SelectOption(label="媒介変数", value="媒介変数", description="媒介変数表示"),
+            discord.SelectOption(label="極座標", value="極座標", description="極座標系"),
+            discord.SelectOption(label="複素数", value="複素数", description="複素数表示"),
+            discord.SelectOption(label="3D", value="3D", description="3次元グラフ"),
+        ]
+        
+        super().__init__(
+            placeholder="数式タイプを選択してください...",
+            min_values=1,
+            max_values=len(options),
+            options=options
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        """数式タイプ選択時の処理"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # 選択された数式タイプを保存
+            self.form_data['formula_type'] = ', '.join(self.values)
+            
+            # タグ選択フェーズに進む
+            gas_client = GASClient()
+            tags_data = await gas_client.get_tags_list()
+            
+            if not tags_data:
+                await interaction.followup.send("タグデータの取得に失敗しました。", ephemeral=True)
+                return
+            
+            # タグリストを表示
+            tags_display = gas_client.format_tags_for_display(tags_data)
+            
+            embed = discord.Embed(
+                title="タグ選択",
+                description=f"利用可能なタグ一覧：\n{tags_display}\n\n**使用方法：**\n• 番号をカンマ区切りで入力: 例 `1, 3, 10`\n• タグなしの場合は「なし」と入力",
+                color=0x00FF7F
+            )
+            
+            view = TagInputView(self.form_data, tags_data)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+class TagInputView(discord.ui.View):
+    """タグ入力ビュー"""
+    
+    def __init__(self, form_data, tags_data):
+        super().__init__(timeout=300)
+        self.form_data = form_data
+        self.tags_data = tags_data
+        
+        # タグ入力モーダルボタン
+        self.tag_button = TagInputButton(form_data, tags_data)
+        self.add_item(self.tag_button)
+
+class TagInputButton(discord.ui.Button):
+    """タグ入力ボタン"""
+    
+    def __init__(self, form_data, tags_data):
+        super().__init__(label="タグを選択", style=discord.ButtonStyle.primary, emoji="🏷️")
+        self.form_data = form_data
+        self.tags_data = tags_data
+    
+    async def callback(self, interaction: discord.Interaction):
+        """タグ入力ボタンクリック時の処理"""
+        modal = TagInputModal(self.form_data, self.tags_data)
+        await interaction.response.send_modal(modal)
+
+class TagInputModal(discord.ui.Modal):
+    """タグ入力モーダル"""
+    
+    def __init__(self, form_data, tags_data):
+        super().__init__(title="タグ選択")
+        self.form_data = form_data
+        self.tags_data = tags_data
+        
+        # タグ入力フィールド
+        self.tag_input = discord.ui.TextInput(
+            label="タグ選択",
+            placeholder="例: 1, 3, 10 または なし",
+            required=True,
+            max_length=200
+        )
+        self.add_item(self.tag_input)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        """タグ入力送信時の処理"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # タグ選択を解析
+            gas_client = GASClient()
+            tag_ids_str = gas_client.parse_tag_selection(self.tags_data, self.tag_input.value)
+            selected_tag_names = gas_client.get_selected_tag_names(self.tags_data, tag_ids_str)
+            
+            self.form_data['tags'] = tag_ids_str
+            
+            # 最終確認を表示
+            embed = discord.Embed(
+                title="数式登録確認",
+                color=0x00FF7F
+            )
+            
+            embed.add_field(name="タイトル", value=self.form_data['title'], inline=False)
+            
+            if self.form_data['title_EN']:
+                embed.add_field(name="英語タイトル", value=self.form_data['title_EN'], inline=False)
+            else:
+                embed.add_field(name="英語タイトル", value="なし", inline=False)
+            
+            # 数式を短縮表示
+            formula_display = self.form_data['formula']
+            if len(formula_display) > 100:
+                formula_display = formula_display[:100] + "..."
+            embed.add_field(name="数式", value=f"```\n{formula_display}\n```", inline=False)
+            
+            embed.add_field(name="タイプ", value=self.form_data['formula_type'], inline=False)
+            
+            tags_display = ', '.join(selected_tag_names) if selected_tag_names else 'なし'
+            embed.add_field(name="タグ", value=tags_display, inline=False)
+            
+            # 画像をプレビュー表示
+            if self.form_data['image_url']:
+                embed.set_image(url=self.form_data['image_url'])
+            
+            view = ConfirmationView(self.form_data)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
+
+class ConfirmationView(discord.ui.View):
+    """最終確認ビュー"""
+    
+    def __init__(self, form_data):
+        super().__init__(timeout=300)
+        self.form_data = form_data
+    
+    @discord.ui.button(label="登録する", style=discord.ButtonStyle.success, emoji="✅")
+    async def confirm_registration(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """登録確定ボタン"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # GASに送信
+            gas_client = GASClient()
+            result = await gas_client.register_formula(self.form_data)
+            
+            if result.get('success'):
+                # 成功
+                formula_id = result.get('result', {}).get('id', '不明')
+                embed = discord.Embed(
+                    title="登録完了",
+                    description="✅ 数式が正常に登録されました！",
+                    color=0x00FF00
+                )
+                embed.add_field(name="ID", value=str(formula_id), inline=False)
+                embed.add_field(name="Grapharyで確認", value=f"https://teth-main.github.io/Graphary/?formulaId={formula_id}", inline=False)
+                embed.set_footer(text="Graph + Library = Graphary")
+                
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            else:
+                # 失敗
+                error_msg = result.get('error', '不明なエラー')
+                embed = discord.Embed(
+                    title="登録失敗",
+                    description=f"❌ 数式の登録に失敗しました。\n\nエラー: {error_msg}",
+                    color=0xFF0000
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                
+        except Exception as e:
+            embed = discord.Embed(
+                title="登録エラー",
+                description=f"❌ 予期しないエラーが発生しました。\n\nエラー: {str(e)}",
+                color=0xFF0000
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+    
+    @discord.ui.button(label="キャンセル", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel_registration(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """キャンセルボタン"""
+        embed = discord.Embed(
+            title="登録キャンセル",
+            description="数式の登録をキャンセルしました。",
+            color=0x888888
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @app_commands.default_permissions(administrator=True)
 @bot.tree.command(name="list_messages", description="管理者限定：利用可能なメッセージキー一覧を表示")
@@ -1095,333 +1386,6 @@ async def check_formula_status_command(interaction: discord.Interaction):
         
     except Exception as e:
         await interaction.followup.send(f"ステータス確認エラー: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="register_formula", description="新しい数式をGrapharyに登録します")
-async def register_formula_command(interaction: discord.Interaction):
-    """数式登録コマンド - モーダルフォームを表示"""
-    
-    try:
-        # 基本情報入力モーダルを作成
-        modal = FormulaRegistrationModal()
-        await interaction.response.send_modal(modal)
-        
-    except Exception as e:
-        await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
-
-class FormulaRegistrationModal(discord.ui.Modal, title="数式登録 - 基本情報"):
-    def __init__(self):
-        super().__init__()
-        
-    # タイトル (必須)
-    title_input = discord.ui.TextInput(
-        label="タイトル",
-        placeholder="数式のタイトルを入力してください",
-        required=True,
-        max_length=100,
-        style=discord.TextStyle.short
-    )
-    
-    # 英語タイトル (オプション)
-    title_en_input = discord.ui.TextInput(
-        label="英語タイトル (オプション)",
-        placeholder="English title (optional)",
-        required=False,
-        max_length=100,
-        style=discord.TextStyle.short
-    )
-    
-    # 数式 (必須)
-    formula_input = discord.ui.TextInput(
-        label="数式",
-        placeholder="LaTeX形式で数式を入力してください\n例: x^2 + y^2 = r^2",
-        required=True,
-        max_length=2000,
-        style=discord.TextStyle.paragraph
-    )
-    
-    # 画像URL (必須)
-    image_url_input = discord.ui.TextInput(
-        label="画像URL",
-        placeholder="https://i.imgur.com/example.png",
-        required=True,
-        max_length=500,
-        style=discord.TextStyle.short
-    )
-    
-    async def on_submit(self, interaction: discord.Interaction):
-        try:
-            # 入力データを一時保存
-            formula_data = {
-                'title': self.title_input.value.strip(),
-                'title_EN': self.title_en_input.value.strip() if self.title_en_input.value else '',
-                'formula': self.formula_input.value.strip(),
-                'image_url': self.image_url_input.value.strip()
-            }
-            
-            # URL形式の簡単なバリデーション
-            if not formula_data['image_url'].startswith(('http://', 'https://')):
-                await interaction.response.send_message("❌ 有効な画像URLを入力してください。", ephemeral=True)
-                return
-            
-            # 数式タイプ選択画面に進む
-            view = FormulaTypeSelectView(formula_data)
-            embed = discord.Embed(
-                title="数式タイプを選択",
-                description="該当する数式タイプを選択してください（複数選択可能）",
-                color=0x00FF7F
-            )
-            
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-            
-        except Exception as e:
-            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
-
-class FormulaTypeSelectView(discord.ui.View):
-    def __init__(self, formula_data):
-        super().__init__(timeout=300)
-        self.formula_data = formula_data
-        
-        # 数式タイプの選択肢
-        formula_types = ["関数", "陰関数", "媒介変数", "極座標", "複素数", "3D"]
-        
-        # SelectMenuを作成
-        self.type_select = discord.ui.Select(
-            placeholder="数式タイプを選択してください...",
-            min_values=1,
-            max_values=len(formula_types),
-            options=[
-                discord.SelectOption(
-                    label=formula_type,
-                    value=formula_type
-                ) for formula_type in formula_types
-            ]
-        )
-        
-        self.type_select.callback = self.on_type_select
-        self.add_item(self.type_select)
-    
-    async def on_type_select(self, interaction: discord.Interaction):
-        try:
-            # 選択された数式タイプを保存
-            selected_types = self.type_select.values
-            self.formula_data['formula_type'] = ', '.join(selected_types)
-            
-            # タグ選択画面に進む
-            await self.show_tag_selection(interaction)
-            
-        except Exception as e:
-            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
-    
-    async def show_tag_selection(self, interaction: discord.Interaction):
-        try:
-            # FirebaseクライアントでGASからタグリストを取得
-            firebase_client = FirebaseClient()
-            tags_data = firebase_client.get_tags_from_gas()
-            
-            if not tags_data:
-                await interaction.response.send_message("❌ タグデータの取得に失敗しました。", ephemeral=True)
-                return
-            
-            # タグ一覧表示ビューを作成
-            view = TagListView(self.formula_data, tags_data)
-            await view.show_tag_list(interaction)
-            
-        except Exception as e:
-            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
-
-class TagListView(discord.ui.View):
-    def __init__(self, formula_data, tags_data):
-        super().__init__(timeout=300)
-        self.formula_data = formula_data
-        self.tags_data = tags_data
-    
-    async def show_tag_list(self, interaction: discord.Interaction):
-        try:
-            # タグリストを番号付きで表示
-            tag_list_text = "利用可能なタグ一覧：\n"
-            for i, tag in enumerate(self.tags_data, 1):
-                tag_name = tag.get('tagName', f"Tag {i}")
-                tag_list_text += f"`{i}. {tag_name}` "
-                if i % 6 == 0:  # 6個ごとに改行
-                    tag_list_text += "\n"
-            
-            embed = discord.Embed(
-                title="タグ一覧",
-                description=tag_list_text,
-                color=0x00FF7F
-            )
-            embed.add_field(
-                name="📝 使用方法",
-                value="下のボタンを押してタグを選択してください\n• 番号をカンマ区切りで入力: 例 `1, 3, 10`\n• タグなしの場合は「なし」と入力",
-                inline=False
-            )
-            
-            # タグ選択ボタンを追加
-            self.add_item(TagSelectButton(self.formula_data, self.tags_data))
-            
-            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
-            
-        except Exception as e:
-            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
-
-class TagSelectButton(discord.ui.Button):
-    def __init__(self, formula_data, tags_data):
-        super().__init__(label="タグを選択する", style=discord.ButtonStyle.primary, emoji="🏷️")
-        self.formula_data = formula_data
-        self.tags_data = tags_data
-    
-    async def callback(self, interaction: discord.Interaction):
-        try:
-            # タグ選択モーダルを表示
-            modal = TagSelectionModal(self.formula_data, self.tags_data)
-            await interaction.response.send_modal(modal)
-            
-        except Exception as e:
-            await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
-
-class TagSelectionModal(discord.ui.Modal, title="タグ選択"):
-    def __init__(self, formula_data, tags_data):
-        super().__init__()
-        self.formula_data = formula_data
-        self.tags_data = tags_data
-    
-    tag_input = discord.ui.TextInput(
-        label="タグ選択",
-        placeholder="番号をカンマ区切りで入力 (例: 1, 3, 10) または「なし」",
-        required=True,
-        max_length=200,
-        style=discord.TextStyle.short
-    )
-    
-    async def on_submit(self, interaction: discord.Interaction):
-        try:
-            tag_input_text = self.tag_input.value.strip()
-            
-            # タグIDを処理
-            if tag_input_text.lower() in ['なし', 'none']:
-                tag_ids = []
-                selected_tag_names = ["なし"]
-            else:
-                # 番号をパース
-                try:
-                    numbers = [int(num.strip()) for num in tag_input_text.split(',') if num.strip()]
-                    tag_ids = []
-                    selected_tag_names = []
-                    
-                    for num in numbers:
-                        if 1 <= num <= len(self.tags_data):
-                            tag_data = self.tags_data[num - 1]  # 0-indexedに変換
-                            tag_ids.append(str(tag_data.get('tagID', '')))
-                            selected_tag_names.append(tag_data.get('tagName', f'Tag {num}'))
-                        else:
-                            await interaction.response.send_message(f"❌ 無効な番号です: {num} (有効範囲: 1-{len(self.tags_data)})", ephemeral=True)
-                            return
-                
-                except ValueError:
-                    await interaction.response.send_message("❌ 有効な番号をカンマ区切りで入力してください。例: 1, 3, 10", ephemeral=True)
-                    return
-            
-            # タグIDを保存
-            self.formula_data['tags'] = ','.join(tag_ids)
-            
-            # 最終確認画面を表示
-            await self.show_confirmation(interaction, selected_tag_names)
-            
-        except Exception as e:
-            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
-    
-    async def show_confirmation(self, interaction: discord.Interaction, selected_tag_names):
-        try:
-            # 確認用のEmbedを作成
-            embed = discord.Embed(
-                title="数式登録確認",
-                description="以下の内容で登録してよろしいですか？",
-                color=0x00FF7F
-            )
-            
-            embed.add_field(name="タイトル", value=self.formula_data['title'], inline=False)
-            if self.formula_data['title_EN']:
-                embed.add_field(name="英語タイトル", value=self.formula_data['title_EN'], inline=False)
-            
-            # 数式を短縮表示
-            formula_display = self.formula_data['formula']
-            if len(formula_display) > 100:
-                formula_display = formula_display[:100] + "..."
-            embed.add_field(name="数式", value=f"```\n{formula_display}\n```", inline=False)
-            
-            embed.add_field(name="数式タイプ", value=self.formula_data['formula_type'], inline=True)
-            embed.add_field(name="タグ", value=', '.join(selected_tag_names), inline=True)
-            embed.add_field(name="画像URL", value=self.formula_data['image_url'], inline=False)
-            
-            # 確認ボタン
-            view = ConfirmationView(self.formula_data)
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-            
-        except Exception as e:
-            await interaction.response.send_message(f"エラーが発生しました: {str(e)}", ephemeral=True)
-
-class ConfirmationView(discord.ui.View):
-    def __init__(self, formula_data):
-        super().__init__(timeout=300)
-        self.formula_data = formula_data
-    
-    @discord.ui.button(label="✅ 登録する", style=discord.ButtonStyle.green)
-    async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            await interaction.response.defer(ephemeral=True)
-            
-            # FirebaseクライアントでGASに送信
-            firebase_client = FirebaseClient()
-            
-            # GAS送信用のデータを準備
-            gas_data = {
-                'title': self.formula_data['title'],
-                'title_EN': self.formula_data['title_EN'],
-                'formula': self.formula_data['formula'],
-                'formula_type': self.formula_data['formula_type'],
-                'tags': self.formula_data['tags'],  # タグIDをカンマ区切りで送信
-                'newTags': '',  # 新規タグは今回は使用しない
-                'image_url': self.formula_data['image_url']
-            }
-            
-            # GASに送信
-            result = firebase_client.send_to_gas(gas_data, 'formula')
-            
-            # 成功メッセージ
-            success_embed = discord.Embed(
-                title="✅ 登録完了",
-                description="数式が正常に登録されました！",
-                color=0x00FF7F
-            )
-            success_embed.add_field(
-                name="登録ID", 
-                value=str(result.get('result', {}).get('id', '不明')), 
-                inline=True
-            )
-            success_embed.add_field(
-                name="Grapharyで確認",
-                value=f"https://teth-main.github.io/Graphary/?formulaId={result.get('result', {}).get('id', '')}",
-                inline=False
-            )
-            
-            await interaction.followup.send(embed=success_embed, ephemeral=True)
-            
-        except Exception as e:
-            error_embed = discord.Embed(
-                title="❌ 登録エラー",
-                description=f"登録中にエラーが発生しました: {str(e)}",
-                color=0xFF0000
-            )
-            await interaction.followup.send(embed=error_embed, ephemeral=True)
-    
-    @discord.ui.button(label="❌ キャンセル", style=discord.ButtonStyle.red)
-    async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
-            title="キャンセル",
-            description="数式の登録をキャンセルしました。",
-            color=0x888888
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 # Botの実行
