@@ -373,7 +373,7 @@ class FormulaRegistrationModal(discord.ui.Modal):
     """数式登録モーダル"""
     
     def __init__(self):
-        super().__init__(title="数式登録 - 基本情報入力 / Formula Registration - Basic Info")
+        super().__init__(title="数式登録 / Formula Registration")
         
         # タイトル（必須）
         self.title_input = discord.ui.TextInput(
