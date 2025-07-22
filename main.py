@@ -1388,15 +1388,6 @@ async def check_formula_status_command(interaction: discord.Interaction):
     except Exception as e:
         await interaction.followup.send(f"ステータス確認エラー: {str(e)}", ephemeral=True)
 
-
-# Botの実行
-if __name__ == "__main__":
-    token = os.getenv('DISCORD_BOT_TOKEN')
-    if not token:
-        print("エラー: DISCORD_BOT_TOKEN環境変数が設定されていません。")
-    else:
-        bot.run(token)
-
 # 誰でも使える: 個人用ダイスコマンド
 @bot.tree.command(name="dice_seacret", description="個人用ダイス: minからmaxの間でランダムな数字を表示します")
 @app_commands.describe(
@@ -1444,3 +1435,11 @@ async def dice_command(
     )
     embed.set_footer(text=f"実行者: {interaction.user.display_name}")
     await interaction.response.send_message(embed=embed, ephemeral=False)
+
+# Botの実行
+if __name__ == "__main__":
+    token = os.getenv('DISCORD_BOT_TOKEN')
+    if not token:
+        print("エラー: DISCORD_BOT_TOKEN環境変数が設定されていません。")
+    else:
+        bot.run(token)
