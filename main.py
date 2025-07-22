@@ -1396,3 +1396,51 @@ if __name__ == "__main__":
         print("エラー: DISCORD_BOT_TOKEN環境変数が設定されていません。")
     else:
         bot.run(token)
+
+# 誰でも使える: 個人用ダイスコマンド
+@bot.tree.command(name="dice_seacret", description="個人用ダイス: minからmaxの間でランダムな数字を表示します")
+@app_commands.describe(
+    min="最小値 (省略時は1)",
+    max="最大値 (省略時は100)"
+)
+async def dice_seacret_command(
+    interaction: discord.Interaction,
+    min: int = 1,
+    max: int = 100
+):
+    import random
+    if min > max:
+        await interaction.response.send_message("最小値は最大値以下にしてください。", ephemeral=True)
+        return
+    result = random.randint(min, max)
+    embed = discord.Embed(
+        title="🎲 ダイス結果 (シークレット)",
+        description=f"{min} から {max} の間で…\n**{result}** が出ました！",
+        color=0x00FF7F
+    )
+    embed.set_footer(text="この結果はあなただけに表示されています")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# 誰でも使える: みんなに見えるダイスコマンド
+@bot.tree.command(name="dice", description="みんなに見えるダイス: minからmaxの間でランダムな数字を表示します")
+@app_commands.describe(
+    min="最小値 (省略時は1)",
+    max="最大値 (省略時は100)"
+)
+async def dice_command(
+    interaction: discord.Interaction,
+    min: int = 1,
+    max: int = 100
+):
+    import random
+    if min > max:
+        await interaction.response.send_message("最小値は最大値以下にしてください。", ephemeral=False)
+        return
+    result = random.randint(min, max)
+    embed = discord.Embed(
+        title="🎲 ダイス結果",
+        description=f"{min} から {max} の間で…\n**{result}** が出ました！",
+        color=0x00FF7F
+    )
+    embed.set_footer(text=f"実行者: {interaction.user.display_name}")
+    await interaction.response.send_message(embed=embed, ephemeral=False)
