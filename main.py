@@ -35,7 +35,7 @@ class MyBot(commands.Bot):
         print(f'Bot is in {len(self.guilds)} guilds')
         print("Bot is ready and commands should be available!")
     
-    @tasks.loop(time=time(hour=0, minute=0, tzinfo=timezone(timedelta(hours=9))))
+    @tasks.loop(time=time(hour=0, minute=10, tzinfo=timezone(timedelta(hours=9))))
     async def daily_formula_notification(self):
         """毎日0時（日本時間）の数式通知タスク"""
         try:
