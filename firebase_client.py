@@ -38,16 +38,14 @@ class FirebaseClient:
             # 日本時間で今日の開始時刻と終了時刻を計算
             jst = timezone(timedelta(hours=9))
             now_jst = datetime.now(jst)
-            today_start = now_jst.replace(hour=0, minute=0, second=0, microsecond=0)
-            today_end = now_jst.replace(hour=23, minute=59, second=59, microsecond=999999)
-            
+            yesterday_start = (now_jst - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
             # UTC時間に変換
-            today_start_utc = today_start.astimezone(timezone.utc)
-            today_end_utc = today_end.astimezone(timezone.utc)
+            today_start_utc = yesterday_start.astimezone(timezone.utc)
             
             # Firestoreクエリ（timestampが今日の範囲内）
             items_ref = self.db.collection('items')
-            query = items_ref.where('timestamp', '>=', today_start_utc).where('timestamp', '<=', today_end_utc)
+            query = items_ref.where('timestamp', '>=', today_start_utc)
             
             results = []
             for doc in query.stream():

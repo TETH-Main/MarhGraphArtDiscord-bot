@@ -37,18 +37,22 @@ class MyBot(commands.Bot):
     
     @tasks.loop(time=time(hour=0, minute=10, tzinfo=timezone(timedelta(hours=9))))
     async def daily_formula_notification(self):
-        """毎日0時（日本時間）の数式通知タスク"""
+        """毎日0時10分（日本時間）の数式通知タスク"""
         try:
             # 通知チャンネルを環境変数から取得
             notification_channel_id = os.getenv('FORMULA_NOTIFICATION_CHANNEL_ID')
+            no_notification_channel_id = os.getenv('NO_FORMULA_NOTIFICATION_CHANNEL_ID')
             if not notification_channel_id:
                 print("FORMULA_NOTIFICATION_CHANNEL_ID環境変数が設定されていません。")
                 return
-            
-            channel = self.get_channel(int(notification_channel_id))
-            if not channel:
-                print(f"通知チャンネル (ID: {notification_channel_id}) が見つかりません。")
+
+            if not no_notification_channel_id:
+                print("NO_FORMULA_NOTIFICATION_CHANNEL_ID環境変数が設定されていません。")
                 return
+
+            # if not channel:
+            #     print(f"通知チャンネル (ID: {notification_channel_id}) が見つかりません。")
+            #     return
             
             # Firebaseから今日の数式を取得
             firebase_client = FirebaseClient()
@@ -56,6 +60,7 @@ class MyBot(commands.Bot):
             
             if not today_formulas:
                 # 今日登録された数式がない場合
+                channel = self.get_channel(int(no_notification_channel_id))
                 embed = discord.Embed(
                     title="今日の数式登録",
                     description="今日はまだ新しい数式が登録されていません。",
@@ -66,6 +71,7 @@ class MyBot(commands.Bot):
                 return
             
             # 数式が登録されている場合 - 各数式を個別のEmbedで送信
+            channel = self.get_channel(int(notification_channel_id))
             for i, formula_data in enumerate(today_formulas):
                 formatted_data = firebase_client.format_formula_for_discord(formula_data)
                 
