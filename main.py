@@ -373,8 +373,15 @@ class FormulaRegistrationModal(discord.ui.Modal):
     """数式登録モーダル"""
     
     def __init__(self):
-        super().__init__(title="数式登録 / Formula Registration")
-        
+        super().__init__(
+            title="数式登録 / Formula Registration",
+            # 注意書きをdescriptionとして追加
+            description=(
+                "⚠️ 15分以内に登録を完了してください。時間を過ぎると登録できなくなります。\n"
+                "(Please complete the registration within 15 minutes. After that, the process will expire and cannot be completed.)"
+            )
+        )
+
         # タイトル（必須）
         self.title_input = discord.ui.TextInput(
             label="タイトル / Title",
@@ -383,7 +390,7 @@ class FormulaRegistrationModal(discord.ui.Modal):
             max_length=100
         )
         self.add_item(self.title_input)
-        
+
         # 英語タイトル（オプション）
         self.title_en_input = discord.ui.TextInput(
             label="英語タイトル / English Title",
@@ -392,7 +399,7 @@ class FormulaRegistrationModal(discord.ui.Modal):
             max_length=100
         )
         self.add_item(self.title_en_input)
-        
+
         # 数式（必須）
         self.formula_input = discord.ui.TextInput(
             label="数式 / Formula",
@@ -402,7 +409,7 @@ class FormulaRegistrationModal(discord.ui.Modal):
             max_length=1000
         )
         self.add_item(self.formula_input)
-        
+
         # 画像URL（必須）
         self.image_url_input = discord.ui.TextInput(
             label="画像URL / Image URL",
