@@ -37,22 +37,18 @@ class MyBot(commands.Bot):
     
     @tasks.loop(time=time(hour=0, minute=10, tzinfo=timezone(timedelta(hours=9))))
     async def daily_formula_notification(self):
-        """毎日0時10分（日本時間）の数式通知タスク"""
+        """毎日0時（日本時間）の数式通知タスク"""
         try:
             # 通知チャンネルを環境変数から取得
             notification_channel_id = os.getenv('FORMULA_NOTIFICATION_CHANNEL_ID')
-            no_notification_channel_id = os.getenv('NO_FORMULA_NOTIFICATION_CHANNEL_ID')
             if not notification_channel_id:
                 print("FORMULA_NOTIFICATION_CHANNEL_ID環境変数が設定されていません。")
                 return
-
-            if not no_notification_channel_id:
-                print("NO_FORMULA_NOTIFICATION_CHANNEL_ID環境変数が設定されていません。")
+            
+            channel = self.get_channel(int(notification_channel_id))
+            if not channel:
+                print(f"通知チャンネル (ID: {notification_channel_id}) が見つかりません。")
                 return
-
-            # if not channel:
-            #     print(f"通知チャンネル (ID: {notification_channel_id}) が見つかりません。")
-            #     return
             
             # Firebaseから今日の数式を取得
             firebase_client = FirebaseClient()
@@ -60,7 +56,6 @@ class MyBot(commands.Bot):
             
             if not today_formulas:
                 # 今日登録された数式がない場合
-                channel = self.get_channel(int(no_notification_channel_id))
                 embed = discord.Embed(
                     title="今日の数式登録",
                     description="今日はまだ新しい数式が登録されていません。",
@@ -71,7 +66,6 @@ class MyBot(commands.Bot):
                 return
             
             # 数式が登録されている場合 - 各数式を個別のEmbedで送信
-            channel = self.get_channel(int(notification_channel_id))
             for i, formula_data in enumerate(today_formulas):
                 formatted_data = firebase_client.format_formula_for_discord(formula_data)
                 
@@ -412,7 +406,7 @@ class FormulaRegistrationModal(discord.ui.Modal):
         # 画像URL（必須）
         self.image_url_input = discord.ui.TextInput(
             label="画像URL / Image URL",
-            placeholder="https://i.imgur.com/example.png",
+            placeholder="外部からアクセスできる画像URLなら何でもOK / Any externally accessible image URL (e.g., https://example.com/image.png)",
             required=True,
             max_length=500
         )
@@ -481,30 +475,41 @@ class FormulaTypeSelect(discord.ui.Select):
         """数式タイプ選択時の処理"""
         try:
             await interaction.response.defer(ephemeral=True)
-            
             # 選択された数式タイプを保存
             self.form_data['formula_type'] = ', '.join(self.values)
-            
+
+            # まず「タグ情報を取得中...」のメッセージを送信
+            loading_message = await interaction.followup.send(
+                content="タグ情報を取得中です...しばらくお待ちください。\n(Loading tags from database...)",
+                ephemeral=True
+            )
+
             # タグ選択フェーズに進む
             gas_client = GASClient()
             tags_data = await gas_client.get_tags_list()
-            
+
             if not tags_data:
                 await interaction.followup.send("タグデータの取得に失敗しました。", ephemeral=True)
                 return
-            
+
             # タグリストを表示
             tags_display = gas_client.format_tags_for_display(tags_data)
-            
+
             embed = discord.Embed(
                 title="タグ選択 / Tag Selection",
                 description=f"利用可能なタグ一覧：\nAvailable tags:\n{tags_display}\n\n**使用方法 / Usage:**\n• 番号をカンマ区切りで入力 / Enter numbers separated by commas: 例/e.g. `1, 3, 10`\n• タグなしの場合は「なし」と入力 / Enter \"なし\" for no tags",
                 color=0x00FF7F
             )
-            
+
             view = TagInputView(self.form_data, tags_data)
             await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-            
+
+            # ローディングメッセージを削除（エフェメラルなので消さなくてもOKだが、UX向上のため）
+            try:
+                await loading_message.delete()
+            except Exception:
+                pass
+
         except Exception as e:
             await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
@@ -618,14 +623,23 @@ class ConfirmationView(discord.ui.View):
                 # 成功
                 formula_id = result.get('result', {}).get('id', '不明')
                 embed = discord.Embed(
-                    title="登録完了 / Registration Complete",
-                    description="✅ 数式が正常に登録されました！\nFormula has been successfully registered!",
+                    title="登録申請完了 / Registration Request Complete",
+                    description=(
+                        "✅ 数式の登録申請が完了しました！\n"
+                        "\n"
+                        "この数式は運営による精査後、毎日0:10(JST)に正式登録されます。\n"
+                        "（不適切な内容の場合は登録されません）\n"
+                        "\n"
+                        "---\n"
+                        "✅ Your formula registration request has been received!\n"
+                        "\n"
+                        "This formula will be reviewed by the admin and officially registered at 00:10 (JST) each day.\n"
+                        "(If the content is inappropriate, it will not be registered.)"
+                    ),
                     color=0x00FF00
                 )
                 embed.add_field(name="ID", value=str(formula_id), inline=False)
-                embed.add_field(name="Grapharyで確認 / View in Graphary", value=f"https://teth-main.github.io/Graphary/?formulaId={formula_id}", inline=False)
                 embed.set_footer(text="Graph + Library = Graphary")
-                
                 await interaction.followup.send(embed=embed, ephemeral=True)
             else:
                 # 失敗
